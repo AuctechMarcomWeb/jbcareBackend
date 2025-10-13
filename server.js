@@ -4,6 +4,10 @@ import cors from "cors";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/Auth/authRoutes.js";
 import userRoutes from "./routes/User/userRoutes.js";
+import siteRoutes from "./routes/masters/siteRoutes.js";
+import projectRoutes from "./routes/masters/projectRoutes.js";
+import unitTypeRoutes from "./routes/masters/unitTypeRoutes.js";
+import unitRoutes from "./routes/masters/unitRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -15,6 +19,10 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/sites", siteRoutes);
+app.use("/api/projects", projectRoutes);
+app.use("/api/unit-types", unitTypeRoutes);
+app.use("/api/units", unitRoutes);
 
 // basic root
 app.get("/", (req, res) => res.send("API running"));
