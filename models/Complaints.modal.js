@@ -33,7 +33,7 @@ const complaintSchema = new mongoose.Schema(
     },
     images: [
       {
-        type: String, // URLs for uploaded images (e.g., Cloudinary or S3)
+        type: String,
       },
     ],
 

@@ -8,8 +8,8 @@ import siteRoutes from "./routes/masters/siteRoutes.js";
 import projectRoutes from "./routes/masters/projectRoutes.js";
 import unitTypeRoutes from "./routes/masters/unitTypeRoutes.js";
 import unitRoutes from "./routes/masters/unitRoutes.js";
-import complaintRoutes from './routes/User/complaintRoutes.js'
-import uploadRoutes from "./routes/utilRoutes/uploadRoutes.js"
+import complaintRoutes from "./routes/User/complaintRoutes.js";
+import uploadRoutes from "./routes/utilRoutes/uploadRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -28,7 +28,6 @@ app.use("/api/units", unitRoutes);
 app.use("/api/complaints", complaintRoutes);
 
 app.use("/api", uploadRoutes);
-
 
 // basic root
 app.get("/", (req, res) => res.send("API running"));
