@@ -66,7 +66,7 @@ export const verifyOtp = async (req, res) => {
     // Find user
     const user = await User.findOne({ phone });
     const token = generateToken(user);
- const responseData = {
+    const responseData = {
       user: {
         id: user._id,
         name: user.name,
@@ -78,7 +78,12 @@ export const verifyOtp = async (req, res) => {
     };
 
     // ✅ Unified success response
-    return sendSuccess(res, "OTP verified, login successful", responseData, 200);
+    return sendSuccess(
+      res,
+      "OTP verified, login successful",
+      responseData,
+      200
+    );
   } catch (error) {
     return sendError(res, "OTP verification failed", 500, error.message);
   }
