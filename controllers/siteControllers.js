@@ -33,7 +33,6 @@ export const createSite = async (req, res) => {
       return sendError(res, "Site with this name  already exists", 400);
     }
 
-    // ✅ Create the site
     const site = await Site.create(req.body);
 
     return sendSuccess(res, "Site created successfully", site, 201);
@@ -43,13 +42,12 @@ export const createSite = async (req, res) => {
   }
 };
 
-// Get all sites
 export const getAllSites = async (req, res) => {
   try {
     const {
-      search, // search text
-      fromDate, // start date (e.g. 2025-10-01)
-      toDate, // end date (e.g. 2025-10-31)
+      search,
+      fromDate,
+      toDate,
       isPagination = "true",
       page = 1,
       limit = 10,
@@ -57,9 +55,8 @@ export const getAllSites = async (req, res) => {
 
     const match = {};
 
-    // 🔎 Search filter (by name, city, or any field you want)
     if (search && search.trim() !== "") {
-      const regex = new RegExp(search.trim(), "i"); // case-insensitive search
+      const regex = new RegExp(search.trim(), "i");
       match.$or = [
         { name: { $regex: regex } },
         { location: { $regex: regex } },
@@ -67,24 +64,20 @@ export const getAllSites = async (req, res) => {
       ];
     }
 
-    // 📅 Date filter (based on createdAt)
     if (fromDate || toDate) {
       match.createdAt = {};
       if (fromDate) {
         match.createdAt.$gte = new Date(fromDate);
       }
       if (toDate) {
-        // Add 1 day to include full day (up to 23:59:59)
         const nextDay = new Date(toDate);
         nextDay.setDate(nextDay.getDate() + 1);
         match.createdAt.$lt = nextDay;
       }
     }
 
-    // 🧭 Query setup
-    const query = Site.find(match).sort({ createdAt: -1 }); // recent first
+    const query = Site.find(match).sort({ createdAt: -1 });
 
-    // 📄 Pagination
     let total = await Site.countDocuments(match);
     if (isPagination === "true") {
       query.skip((page - 1) * limit).limit(parseInt(limit));
