@@ -1,6 +1,7 @@
 import express from "express";
 import { login, register } from "../../controllers/authControllers.js";
 import { sendOtp, verifyOtp } from "../../controllers/otpControllers.js";
+import { protect } from "../../middleware/authMiddleware.js";
 
 const router = express.Router();
 
