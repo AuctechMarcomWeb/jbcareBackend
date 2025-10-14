@@ -1,6 +1,7 @@
 import User from "../models/User.modal.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
 // helper to create token
 const createToken = (userId) => {
@@ -36,8 +37,8 @@ export const register = async (req, res) => {
     });
 
     const token = createToken(user._id);
-    res.status(201).json({
-      message: "User registered",
+    // Structure response data
+    const responseData = {
       user: {
         id: user._id,
         name: user.name,
@@ -46,11 +47,12 @@ export const register = async (req, res) => {
         role: user.role,
       },
       token,
-    });
+    };
+
+    // Send unified success response
+    return sendSuccess(res, "User registered successfully", responseData, 201);
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Registration failed", error: err.message });
+    return sendError(res, "Registration failed", 500, err.message);
   }
 };
 
@@ -83,8 +85,8 @@ export const login = async (req, res) => {
 
     const token = createToken(user._id);
 
-    res.json({
-      message: "Login successful",
+    // Prepare user data
+    const responseData = {
       user: {
         id: user._id,
         name: user.name,
@@ -93,8 +95,11 @@ export const login = async (req, res) => {
         role: user.role,
       },
       token,
-    });
+    };
+
+    // Send unified success response
+    return sendSuccess(res, "Login successful", responseData, 200);
   } catch (err) {
-    res.status(500).json({ message: "Login failed", error: err.message });
+    return sendError(res, "Login failed", 500, err.message);
   }
 };

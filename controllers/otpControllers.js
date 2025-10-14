@@ -1,6 +1,7 @@
 import OTP from "../models/VerifyOTP.modal.js";
 import User from "../models/User.modal.js";
 import jwt from "jsonwebtoken";
+import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
 // Generate random 6-digit OTP
 const generateOtpCode = () =>
@@ -39,9 +40,9 @@ export const sendOtp = async (req, res) => {
     // Here you would send OTP via SMS provider
     console.log(`OTP for ${phone}: ${otpCode}`);
 
-    res.json({ message: "OTP sent successfully", otp: otpCode });
+    return sendSuccess(res, "OTP sent successfully", { phone, otpCode }, 200);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, "Failed to send OTP", 500, error.message);
   }
 };
 
@@ -65,9 +66,20 @@ export const verifyOtp = async (req, res) => {
     // Find user
     const user = await User.findOne({ phone });
     const token = generateToken(user);
+ const responseData = {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+      token,
+    };
 
-    res.json({ message: "OTP verified, login successful", token, user });
+    // ✅ Unified success response
+    return sendSuccess(res, "OTP verified, login successful", responseData, 200);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendError(res, "OTP verification failed", 500, error.message);
   }
 };
