@@ -10,6 +10,7 @@ const projectSchema = new mongoose.Schema(
       required: true,
     },
     projectAddress: { type: String, required: true },
+    status: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
