@@ -3,18 +3,106 @@ import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
 export const createSite = async (req, res) => {
   try {
+    const { siteName, siteAddress, city, state, country } = req.body;
+
+    if (!siteName || typeof siteName !== "string" || siteName.trim() === "") {
+      return sendError(
+        res,
+        "siteName is required and must be a non-empty string",
+        400
+      );
+    }
+
+    if (
+      !siteAddress ||
+      typeof siteAddress !== "string" ||
+      siteAddress.trim() === ""
+    ) {
+      return sendError(
+        res,
+        "siteAddress is required and must be a non-empty string",
+        400
+      );
+    }
+
+    const existingSite = await Site.findOne({
+      siteName: siteName.trim(),
+    });
+
+    if (existingSite) {
+      return sendError(res, "Site with this name  already exists", 400);
+    }
+
+    // ✅ Create the site
     const site = await Site.create(req.body);
+
     return sendSuccess(res, "Site created successfully", site, 201);
   } catch (err) {
-    return sendError(res, "Failed to create site", 400, err.message);
+    console.error("Create Site Error:", err);
+    return sendError(res, "Failed to create site", 500, err.message);
   }
 };
 
 // Get all sites
 export const getAllSites = async (req, res) => {
   try {
-    const sites = await Site.find();
-    return sendSuccess(res, "Sites fetched successfully", sites, 200);
+    const {
+      search, // search text
+      fromDate, // start date (e.g. 2025-10-01)
+      toDate, // end date (e.g. 2025-10-31)
+      isPagination = "true",
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const match = {};
+
+    // 🔎 Search filter (by name, city, or any field you want)
+    if (search && search.trim() !== "") {
+      const regex = new RegExp(search.trim(), "i"); // case-insensitive search
+      match.$or = [
+        { name: { $regex: regex } },
+        { location: { $regex: regex } },
+        { city: { $regex: regex } },
+      ];
+    }
+
+    // 📅 Date filter (based on createdAt)
+    if (fromDate || toDate) {
+      match.createdAt = {};
+      if (fromDate) {
+        match.createdAt.$gte = new Date(fromDate);
+      }
+      if (toDate) {
+        // Add 1 day to include full day (up to 23:59:59)
+        const nextDay = new Date(toDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        match.createdAt.$lt = nextDay;
+      }
+    }
+
+    // 🧭 Query setup
+    const query = Site.find(match).sort({ createdAt: -1 }); // recent first
+
+    // 📄 Pagination
+    let total = await Site.countDocuments(match);
+    if (isPagination === "true") {
+      query.skip((page - 1) * limit).limit(parseInt(limit));
+    }
+
+    const sites = await query;
+
+    return sendSuccess(
+      res,
+      "Sites fetched successfully",
+      {
+        sites,
+        totalSites: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: Number(page),
+      },
+      200
+    );
   } catch (err) {
     return sendError(res, "Failed to fetch sites", 500, err.message);
   }

@@ -11,7 +11,7 @@ import {
 
 // Role-based access only, no token required
 router.post("/", createSite);
-router.get("/:role", getAllSites);
+router.get("/", getAllSites);
 router.put("/:id", updateSite);
 router.delete("/:id", deleteSite);
 
