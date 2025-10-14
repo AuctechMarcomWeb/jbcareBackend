@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 
 const unitSchema = new mongoose.Schema(
   {
-    unitNumber: { type: String, required: true, unique: true }, // primary key
+    unitNumber: { type: String, required: true, unique: true },
     block: { type: String },
     floor: { type: String },
     areaSqFt: { type: Number },

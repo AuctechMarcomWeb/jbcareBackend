@@ -10,9 +10,9 @@ import {
 } from "../../controllers/siteControllers.js";
 
 // Role-based access only, no token required
-router.post("/", authorizeRoles("admin"), createSite);
-router.get("/:role", authorizeRoles("admin"), getAllSites);
-router.put("/:id", authorizeRoles("admin"), updateSite);
-router.delete("/:id", authorizeRoles("admin"), deleteSite);
+router.post("/", createSite);
+router.get("/:role", getAllSites);
+router.put("/:id", updateSite);
+router.delete("/:id", deleteSite);
 
 export default router;
