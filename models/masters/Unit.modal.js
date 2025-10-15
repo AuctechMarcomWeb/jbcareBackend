@@ -22,6 +22,10 @@ const unitSchema = new mongoose.Schema(
       ref: "UnitType",
       required: true,
     },
+    landlordId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Landlord",
+    },
     status: { type: Boolean, default: true },
   },
   { timestamps: true }
