@@ -101,6 +101,15 @@ export const getAllUnits = async (req, res) => {
       .populate("siteId", "siteName")
       .populate("projectId", "projectName")
       .populate("unitTypeId", "title")
+      .populate("landlordId", "name phone email") // populate current landlord
+      .populate({
+        path: "landlordHistory.landlordId",
+        select: "name phone email", // populate landlord details in history
+      })
+      .populate({
+        path: "tenantHistory.tenantId",
+        select: "name phone email", // populate tenant details in history
+      })
       .sort({ createdAt: -1 });
 
     const total = await Unit.countDocuments(match);

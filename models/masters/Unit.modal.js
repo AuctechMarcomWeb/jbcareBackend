@@ -26,6 +26,27 @@ const unitSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Landlord",
     },
+    landlordHistory: [
+      {
+        landlordId: { type: mongoose.Schema.Types.ObjectId, ref: "Landlord" },
+        startDate: { type: Date, default: Date.now },
+        endDate: { type: Date },
+        isActive: { type: Boolean, default: true },
+      },
+    ],
+    tenantHistory: [
+      {
+        tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant" },
+        startDate: { type: Date, required: true },
+        endDate: { type: Date },
+        addedBy: {
+          type: String,
+          enum: ["admin", "landlord"],
+        },
+        billTo: { type: String, enum: ["tenant", "landlord"] },
+        isActive: { type: Boolean, default: true },
+      },
+    ],
     status: { type: Boolean, default: true },
   },
   { timestamps: true }
