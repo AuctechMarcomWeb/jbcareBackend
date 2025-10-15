@@ -2,6 +2,8 @@ import Tenant from "../models/Tenant.modal.js";
 import Landlord from "../models/LandLord.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
+import Site from "../models/masters/site.modal.js";
+import Project from "../models/masters/Project.modal.js";
 
 // 🟢 Add Tenant
 export const addTenant = async (req, res) => {
@@ -21,33 +23,33 @@ export const addTenant = async (req, res) => {
     } = req.body;
 
     if (
-  !name ||
-  !phone ||
-  !siteId ||
-  !projectId ||
-  !unitId ||
-  !landlordId ||
-  !addedBy
-) {
-  const missingFields = [];
-  if (!name) missingFields.push("name");
-  if (!phone) missingFields.push("phone");
-  if (!siteId) missingFields.push("siteId");
-  if (!projectId) missingFields.push("projectId");
-  if (!unitId) missingFields.push("unitId");
-  if (!landlordId) missingFields.push("landlordId");
-  if (!addedBy) missingFields.push("addedBy");
+      !name ||
+      !phone ||
+      !siteId ||
+      !projectId ||
+      !unitId ||
+      !landlordId ||
+      !addedBy
+    ) {
+      const missingFields = [];
+      if (!name) missingFields.push("name");
+      if (!phone) missingFields.push("phone");
+      if (!siteId) missingFields.push("siteId");
+      if (!projectId) missingFields.push("projectId");
+      if (!unitId) missingFields.push("unitId");
+      if (!landlordId) missingFields.push("landlordId");
+      if (!addedBy) missingFields.push("addedBy");
 
-  return sendError(
-    res,
-    `Missing required field(s): ${missingFields.join(", ")}.`,
-    400,
-    "Validation Error"
-  );
-}
+      return sendError(
+        res,
+        `Missing required field(s): ${missingFields.join(", ")}.`,
+        400,
+        "Validation Error"
+      );
+    }
     // Validate landlord & unit
     const landlord = await Landlord.findById(landlordId);
-    if (!landlord) return sendError(res, "Landlord not found.", null, 404);
+    if (!landlord) return sendError(res, "Landlord not found.", 404, null);
 
     const unit = await Unit.findById(unitId);
     if (!unit)
@@ -58,11 +60,46 @@ export const addTenant = async (req, res) => {
         "Unit Id not found/invalid"
       );
 
+    const site = await Site.findById(siteId);
+    if (!site)
+      return sendError(
+        res,
+        "Site not found.",
+        404,
+        "Site Id not found/invalid"
+      );
+
+    const project = await Project.findById(projectId);
+    if (!project)
+      return sendError(
+        res,
+        "Project not found.",
+        404,
+        "Project Id not found/invalid"
+      );
+
     // Archive old active tenant for this unit
-    await Tenant.updateMany(
-      { unitId, isActive: true },
-      { $set: { isActive: false, tenancyEndDate: new Date() } }
-    );
+    // await Tenant.updateMany(
+    //   { unitId, isActive: true },
+    //   { $set: { isActive: false, tenancyEndDate: new Date() } }
+    // );
+    // ❌ Check if there is an active tenant already
+
+    // Archive old active tenant if exists
+    const activeTenant = await Tenant.findOne({ unitId, isActive: true });
+    if (activeTenant) {
+      activeTenant.isActive = false;
+      activeTenant.tenancyEndDate = new Date();
+      await activeTenant.save();
+
+      unit.tenantHistory.push({
+        tenantId: activeTenant._id,
+        startDate: activeTenant.tenancyStartDate,
+        endDate: activeTenant.tenancyEndDate,
+        addedBy: activeTenant.addedBy,
+        billTo: activeTenant.billTo,
+      });
+    }
 
     // Create new tenant
     const tenant = await Tenant.create({
@@ -78,6 +115,16 @@ export const addTenant = async (req, res) => {
       addedBy,
       billTo,
     });
+
+    // Add new tenant to unit history as current
+    unit.tenantHistory.push({
+      tenantId: tenant._id,
+      startDate: tenant.tenancyStartDate,
+      addedBy: tenant.addedBy,
+      billTo: tenant.billTo,
+    });
+
+    await unit.save();
 
     return sendSuccess(res, "Tenant added successfully.", tenant, 201);
   } catch (err) {
@@ -119,16 +166,25 @@ export const getTenants = async (req, res) => {
       .limit(Number(limit))
       .sort({ createdAt: -1 });
 
+    if (tenants.length === 0) {
+      return sendSuccess(
+        res,
+        "No tenants found.",
+        { tenants: [], total: 0, page: Number(page), limit: Number(limit) },
+        200
+      );
+    }
+
     const total = await Tenant.countDocuments(query);
 
     return sendSuccess(
       res,
       "Tenants fetched successfully.",
       {
+        tenants,
         total,
         page: Number(page),
         limit: Number(limit),
-        tenants,
       },
       200
     );
@@ -189,10 +245,16 @@ export const updateTenant = async (req, res) => {
 
 // 🔴 Delete / Archive Tenant
 export const deleteTenant = async (req, res) => {
-  if (req?.params?.id === undefined || req?.params?.id === null) {
-    return sendError(res, "Tenant ID is required", 400, "Tenant ID is missing");
-  }
+  console.log("Delete Tenant Called with ID:", req.params.id);
   try {
+    if (req?.params?.id === undefined || req?.params?.id === null) {
+      return sendError(
+        res,
+        "Tenant ID is required",
+        400,
+        "Tenant ID is missing"
+      );
+    }
     const tenant = await Tenant.findById(req.params.id);
     if (!tenant)
       return res
@@ -202,6 +264,18 @@ export const deleteTenant = async (req, res) => {
     tenant.isActive = false;
     tenant.tenancyEndDate = new Date();
     await tenant.save();
+
+    const unit = await Unit.findById(tenant.unitId);
+    if (unit) {
+      unit.tenantHistory.push({
+        tenantId: tenant._id,
+        startDate: tenant.tenancyStartDate,
+        endDate: tenant.tenancyEndDate,
+        addedBy: tenant.addedBy,
+        billTo: tenant.billTo,
+      });
+      await unit.save();
+    }
 
     return sendSuccess(res, "Tenant archived successfully.", tenant, 200);
   } catch (err) {
