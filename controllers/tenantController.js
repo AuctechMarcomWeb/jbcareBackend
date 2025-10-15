@@ -5,7 +5,6 @@ import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import Site from "../models/masters/site.modal.js";
 import Project from "../models/masters/Project.modal.js";
 
-// 🟢 Add Tenant
 export const addTenant = async (req, res) => {
   try {
     const {
@@ -20,88 +19,54 @@ export const addTenant = async (req, res) => {
       landlordId,
       addedBy,
       billTo,
+      isActive = true, // Default to true
     } = req.body;
 
-    if (
-      !name ||
-      !phone ||
-      !siteId ||
-      !projectId ||
-      !unitId ||
-      !landlordId ||
-      !addedBy
-    ) {
-      const missingFields = [];
-      if (!name) missingFields.push("name");
-      if (!phone) missingFields.push("phone");
-      if (!siteId) missingFields.push("siteId");
-      if (!projectId) missingFields.push("projectId");
-      if (!unitId) missingFields.push("unitId");
-      if (!landlordId) missingFields.push("landlordId");
-      if (!addedBy) missingFields.push("addedBy");
+    // 🧩 Validation
+    const missingFields = [];
+    if (!name) missingFields.push("name");
+    if (!phone) missingFields.push("phone");
+    if (!siteId) missingFields.push("siteId");
+    if (!projectId) missingFields.push("projectId");
+    if (!unitId) missingFields.push("unitId");
+    if (!landlordId) missingFields.push("landlordId");
+    if (!addedBy) missingFields.push("addedBy");
 
+    if (missingFields.length)
       return sendError(
         res,
-        `Missing required field(s): ${missingFields.join(", ")}.`,
+        `Missing required field(s): ${missingFields.join(", ")}`,
         400,
         "Validation Error"
       );
-    }
-    // Validate landlord & unit
+
+    // ✅ Validate references
     const landlord = await Landlord.findById(landlordId);
-    if (!landlord) return sendError(res, "Landlord not found.", 404, null);
+    if (!landlord) return sendError(res, "Landlord not found.", 404);
 
     const unit = await Unit.findById(unitId);
-    if (!unit)
-      return sendError(
-        res,
-        "Unit not found.",
-        404,
-        "Unit Id not found/invalid"
-      );
+    if (!unit) return sendError(res, "Unit not found.", 404);
 
-    const site = await Site.findById(siteId);
-    if (!site)
-      return sendError(
-        res,
-        "Site not found.",
-        404,
-        "Site Id not found/invalid"
-      );
+    // 🔄 DEACTIVATE OTHER ACTIVE TENANTS IN THIS UNIT
+    if (isActive) {
+      const otherTenants = await Tenant.find({ unitId, isActive: true });
+      for (const other of otherTenants) {
+        other.isActive = false;
+        other.tenancyEndDate = new Date();
+        await other.save();
 
-    const project = await Project.findById(projectId);
-    if (!project)
-      return sendError(
-        res,
-        "Project not found.",
-        404,
-        "Project Id not found/invalid"
-      );
-
-    // Archive old active tenant for this unit
-    // await Tenant.updateMany(
-    //   { unitId, isActive: true },
-    //   { $set: { isActive: false, tenancyEndDate: new Date() } }
-    // );
-    // ❌ Check if there is an active tenant already
-
-    // Archive old active tenant if exists
-    const activeTenant = await Tenant.findOne({ unitId, isActive: true });
-    if (activeTenant) {
-      activeTenant.isActive = false;
-      activeTenant.tenancyEndDate = new Date();
-      await activeTenant.save();
-
-      unit.tenantHistory.push({
-        tenantId: activeTenant._id,
-        startDate: activeTenant.tenancyStartDate,
-        endDate: activeTenant.tenancyEndDate,
-        addedBy: activeTenant.addedBy,
-        billTo: activeTenant.billTo,
-      });
+        // Update the existing tenantHistory entry instead of pushing new
+        const historyEntry = unit.tenantHistory.find(
+          (h) => String(h.tenantId) === String(other._id) && h.isActive === true
+        );
+        if (historyEntry) {
+          historyEntry.endDate = other.tenancyEndDate;
+          historyEntry.isActive = false;
+        }
+      }
     }
 
-    // Create new tenant
+    // 🏗 Create new tenant
     const tenant = await Tenant.create({
       name,
       phone,
@@ -114,22 +79,24 @@ export const addTenant = async (req, res) => {
       landlordId,
       addedBy,
       billTo,
+      isActive,
+      tenancyStartDate: new Date(),
     });
 
-    // Add new tenant to unit history as current
+    // ✅ Update unit reference & history
+    if (isActive) unit.tenantId = tenant._id;
     unit.tenantHistory.push({
       tenantId: tenant._id,
       startDate: tenant.tenancyStartDate,
       addedBy: tenant.addedBy,
       billTo: tenant.billTo,
+      isActive: tenant.isActive,
     });
-
     await unit.save();
-
     return sendSuccess(res, "Tenant added successfully.", tenant, 201);
   } catch (err) {
     console.error("Add Tenant Error:", err);
-    return sendError(res, "Failed to add tenant.", 500, err?.message);
+    return sendError(res, "Failed to add tenant.", 500, err.message);
   }
 };
 
@@ -215,51 +182,95 @@ export const getTenantById = async (req, res) => {
   }
 };
 
-// 🟠 Update Tenant
 export const updateTenant = async (req, res) => {
-  if (req?.params?.id === undefined || req?.params?.id === null) {
-    return sendError(res, "Tenant ID is required", 400, "Tenant ID is missing");
-  }
-  if (Object.keys(req.body).length === 0) {
-    return sendError(res, "No data provided for update", 400, "Empty body");
-  }
   try {
-    const updates = req.body;
-    const tenant = await Tenant.findByIdAndUpdate(req.params.id, updates, {
-      new: true,
-    });
-    if (!tenant)
-      return sendError(
-        res,
-        "Tenant not found.",
-        404,
-        "Tenant not found/invalid ID"
-      );
+    const tenantId = req.params.id;
+    if (!tenantId) return sendError(res, "Tenant ID is required", 400);
 
-    return sendSuccess(res, "Tenant fetched successfully.", tenant, 200);
+    if (Object.keys(req.body).length === 0)
+      return sendError(res, "No data provided for update", 400);
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return sendError(res, "Tenant not found.", 404);
+
+    const { isActive, ...updates } = req.body;
+
+    const unit = await Unit.findById(tenant.unitId);
+    if (!unit) return sendError(res, "Unit not found.", 404);
+
+    // 🔄 DEACTIVATE OTHER ACTIVE TENANTS IF CURRENT TENANT IS ACTIVATED
+    if (isActive === true) {
+      const otherTenants = await Tenant.find({
+        unitId: tenant.unitId,
+        _id: { $ne: tenant._id },
+        isActive: true,
+      });
+
+      for (const other of otherTenants) {
+        other.isActive = false;
+        other.tenancyEndDate = new Date();
+        await other.save();
+
+        // Update the existing tenantHistory entry
+        const historyEntry = unit.tenantHistory.find(
+          (h) => String(h.tenantId) === String(other._id) && h.isActive === true
+        );
+        if (historyEntry) {
+          historyEntry.endDate = other.tenancyEndDate;
+          historyEntry.isActive = false;
+        }
+      }
+    }
+
+    // Apply updates to tenant
+    Object.assign(tenant, updates);
+    if (isActive !== undefined) tenant.isActive = isActive;
+    if (isActive === true && !tenant.tenancyStartDate)
+      tenant.tenancyStartDate = new Date();
+
+    await tenant.save();
+
+    // ✅ Update or push tenant history
+    let historyEntry = unit.tenantHistory.find(
+      (h) => String(h.tenantId) === String(tenant._id) && h.isActive === true
+    );
+
+    if (historyEntry) {
+      historyEntry.startDate = tenant.tenancyStartDate;
+      historyEntry.endDate = tenant.tenancyEndDate || undefined;
+      historyEntry.isActive = tenant.isActive;
+    } else {
+      unit.tenantHistory.push({
+        tenantId: tenant._id,
+        startDate: tenant.tenancyStartDate,
+        endDate: tenant.tenancyEndDate || undefined,
+        addedBy: tenant.addedBy,
+        billTo: tenant.billTo,
+        isActive: tenant.isActive,
+      });
+    }
+
+    // Update unit tenant reference
+    if (isActive === true) unit.tenantId = tenant._id;
+
+    await unit.save();
+
+    return sendSuccess(res, "Tenant updated successfully.", tenant, 200);
   } catch (err) {
     console.error("Update Tenant Error:", err);
-    return sendError(res, "Failed to fetch tenant.", 500, err?.message);
+    return sendError(res, "Failed to update tenant.", 500, err.message);
   }
 };
 
 // 🔴 Delete / Archive Tenant
 export const deleteTenant = async (req, res) => {
-  console.log("Delete Tenant Called with ID:", req.params.id);
   try {
-    if (req?.params?.id === undefined || req?.params?.id === null) {
-      return sendError(
-        res,
-        "Tenant ID is required",
-        400,
-        "Tenant ID is missing"
-      );
-    }
-    const tenant = await Tenant.findById(req.params.id);
-    if (!tenant)
-      return res
-        .status(404)
-        .json({ success: false, message: "Tenant not found." });
+    const tenantId = req.params.id;
+    if (!tenantId)
+      return sendError(res, "Tenant ID is required", 400, "Missing ID");
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return sendError(res, "Tenant not found.", 404);
 
     tenant.isActive = false;
     tenant.tenancyEndDate = new Date();
@@ -267,19 +278,26 @@ export const deleteTenant = async (req, res) => {
 
     const unit = await Unit.findById(tenant.unitId);
     if (unit) {
-      unit.tenantHistory.push({
-        tenantId: tenant._id,
-        startDate: tenant.tenancyStartDate,
-        endDate: tenant.tenancyEndDate,
-        addedBy: tenant.addedBy,
-        billTo: tenant.billTo,
-      });
+      // Update existing tenant history in unit
+      const historyEntry = unit.tenantHistory.find(
+        (h) => String(h.tenantId) === String(tenant._id) && h.isActive === true
+      );
+      if (historyEntry) {
+        historyEntry.endDate = tenant.tenancyEndDate;
+        historyEntry.isActive = false;
+      }
+
+      // Clear unit tenant reference if it's the same tenant
+      if (String(unit.tenantId) === String(tenant._id)) {
+        unit.tenantId = null;
+      }
+
       await unit.save();
     }
 
     return sendSuccess(res, "Tenant archived successfully.", tenant, 200);
   } catch (err) {
     console.error("Delete Tenant Error:", err);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return sendError(res, "Server Error", 500, err.message);
   }
 };
