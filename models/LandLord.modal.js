@@ -4,10 +4,9 @@ const landlordSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     phone: { type: String, required: true },
-    email: { type: String },
+    email: { type: String, trim: true, lowercase: true },
     address: { type: String },
-    profilePic: { type: String }, // image URL (e.g., from Cloudinary)
-
+    profilePic: { type: String },
     siteId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Site",
