@@ -1,5 +1,5 @@
 import Tenant from "../models/Tenant.modal.js";
-import Landlord from "../models/LandLord.modal.js";
+import Landlord from "../models/Landlord.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import Site from "../models/masters/site.modal.js";
@@ -94,7 +94,7 @@ export const addTenant = async (req, res) => {
       isActive: tenant.isActive,
     });
     await unit.save();
-    await createUser({
+    const createdUser = await createUser({
       name: tenant?.name,
       email: tenant?.email,
       phone: tenant?.phone,
@@ -102,7 +102,9 @@ export const addTenant = async (req, res) => {
       role: "tenant",
       referenceId: tenant?._id, // optional to link
     });
-
+    // 🔹 Save userId back to tenant
+    tenant.userId = createdUser._id;
+    await tenant.save();
     return sendSuccess(res, "Tenant added successfully.", tenant, 201);
   } catch (err) {
     console.error("Add Tenant Error:", err);

@@ -33,6 +33,7 @@ const landlordSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User", // whoever registered this landlord
     },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // 👈 new field
   },
   { timestamps: true }
 );

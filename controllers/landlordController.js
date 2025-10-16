@@ -1,4 +1,4 @@
-import Landlord from "../models/LandLord.modal.js";
+import Landlord from "../models/Landlord.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
@@ -112,7 +112,7 @@ export const addLandlord = async (req, res) => {
 
       await unit.save();
     }
-    await createUser({
+    const createdUser = await createUser({
       name: landlord?.name,
       email: landlord?.email,
       phone: landlord?.phone,
@@ -120,6 +120,10 @@ export const addLandlord = async (req, res) => {
       role: "landlord",
       referenceId: landlord?._id,
     });
+
+    // 🔹 Save user ID back to landlord
+    landlord.userId = createdUser._id;
+    await landlord.save();
 
     return sendSuccess(res, "Landlord added successfully.", landlord, 201);
   } catch (err) {
