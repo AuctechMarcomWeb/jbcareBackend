@@ -19,7 +19,6 @@ router.put(
   reviewComplaint
 );
 
-// SUPERVISOR/ADMIN - Mark complaint resolved
 router.put(
   "/:id/resolve",
 
