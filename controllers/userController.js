@@ -23,12 +23,10 @@ export const createUser = async (req, res) => {
       role,
       password: hashed,
     });
-    res
-      .status(201)
-      .json({
-        message: "User created",
-        user: { ...user.toObject(), password: undefined },
-      });
+    res.status(201).json({
+      message: "User created",
+      user: { ...user.toObject(), password: undefined },
+    });
   } catch (err) {
     res
       .status(500)
