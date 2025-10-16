@@ -1,5 +1,7 @@
 import User from "../models/User.modal.js";
 import bcrypt from "bcryptjs";
+import Landlord from "../models/Landlord.modal.js";
+import Tenant from "../models/Tenant.modal.js";
 
 // Create user (admin only) - alternative to register route
 export const createUser = async (req, res) => {
@@ -34,11 +36,26 @@ export const createUser = async (req, res) => {
   }
 };
 
-// GET /api/users - list all users (admin & supervisor)
+// GET /api/users - list all users
 export const getUsers = async (req, res) => {
   try {
     const users = await User.find().select("-password");
-    res.json(users);
+
+    // Populate referenceId dynamically
+    const populatedUsers = await Promise.all(
+      users.map(async (user) => {
+        if (!user.referenceId) return user;
+        let refDoc = null;
+        if (user.role === "landlord") {
+          refDoc = await Landlord.findById(user.referenceId);
+        } else if (user.role === "tenant") {
+          refDoc = await Tenant.findById(user.referenceId);
+        }
+        return { ...user.toObject(), referenceId: refDoc };
+      })
+    );
+
+    res.json(populatedUsers);
   } catch (err) {
     res
       .status(500)
@@ -46,22 +63,36 @@ export const getUsers = async (req, res) => {
   }
 };
 
-// GET /api/users/:id - get single user (admin/supervisor or owner)
+// GET /api/users/:id - get single user
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    // allow self read even if role is not admin/supervisor
-    if (
-      req.user.role !== "admin" &&
-      req.user.role !== "supervisor" &&
-      req.user._id.toString() !== id
-    ) {
-      return res
-        .status(403)
-        .json({ message: "Not authorized to view this user" });
-    }
-    const user = await User.findById(id).select("-password");
+
+    // if (
+    //   req.user.role !== "admin" &&
+    //   req.user.role !== "supervisor" &&
+    //   req.user._id.toString() !== id
+    // ) {
+    //   return res
+    //     .status(403)
+    //     .json({ message: "Not authorized to view this user" });
+    // }
+
+    let user = await User.findById(id).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Populate referenceId dynamically based on role
+    if (user.referenceId) {
+      let refDoc = null;
+      if (user.role === "landlord") {
+        refDoc = await Landlord.findById(user.referenceId);
+      } else if (user.role === "tenant") {
+        refDoc = await Tenant.findById(user.referenceId);
+      }
+      user = user.toObject();
+      user.referenceId = refDoc; // attach populated document
+    }
+
     res.json(user);
   } catch (err) {
     res

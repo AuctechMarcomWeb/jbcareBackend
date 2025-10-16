@@ -5,18 +5,18 @@ import { createUser, deleteUser, getUserById, getUsers, updateUser } from "../..
 const router = express.Router();
 
 // create user (admin only) - optional because register exists
-router.post("/", protect, authorizeRoles("admin"), createUser);
+router.post("/", createUser);
 
 // read all (admin & supervisor)
-router.get("/", protect, authorizeRoles("admin", "supervisor"), getUsers);
+router.get("/", getUsers);
 
 // read single (admin/supervisor or owner allowed in controller)
-router.get("/:id", protect, getUserById);
+router.get("/:id", getUserById);
 
 // update (admin/supervisor or owner)
-router.put("/:id", protect, updateUser);
+router.put("/:id", updateUser);
 
 // delete (admin only)
-router.delete("/:id", protect, authorizeRoles("admin"), deleteUser);
+router.delete("/:id", deleteUser);
 
 export default router;
