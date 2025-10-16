@@ -112,14 +112,14 @@ export const addLandlord = async (req, res) => {
 
       await unit.save();
     }
-      await createUser({
-        name: landlord?.name,
-        email: landlord?.email,
-        phone: landlord?.phone,
-        password: `${landlord?.name}123`, // or generate random
-        role: "landlord",
-        referenceId: landlord?._id, // optional to link
-      });
+    await createUser({
+      name: landlord?.name,
+      email: landlord?.email,
+      phone: landlord?.phone,
+      password: `Abc@123`,
+      role: "landlord",
+      referenceId: landlord?._id,
+    });
 
     return sendSuccess(res, "Landlord added successfully.", landlord, 201);
   } catch (err) {
