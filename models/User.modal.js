@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "user", "supervisor"],
+      enum: ["admin", "user", "supervisor", "landlord", "tenant"],
       default: "user",
     },
     password: {
@@ -38,6 +38,7 @@ const userSchema = new mongoose.Schema(
       required: [true, "Password is required"],
       minlength: 6,
     },
+    referenceId: { type: mongoose.Schema.Types.ObjectId }, // link to landlord/tenant if needed
   },
   {
     timestamps: true,
