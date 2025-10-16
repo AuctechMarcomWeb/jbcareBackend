@@ -48,5 +48,5 @@ const tenantSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Tenant = mongoose.model("Tenant", tenantSchema);
+const Tenant = mongoose.models.Tenant || mongoose.model("Tenant", tenantSchema);
 export default Tenant;
