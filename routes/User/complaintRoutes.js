@@ -1,31 +1,22 @@
 import express from "express";
+import { protect, authorizeRoles } from "../../middleware/authMiddleware.js";
 import {
   createComplaint,
-  reviewComplaint,
-  resolveComplaint,
+  updateComplaint,
   getAllComplaints,
 } from "../../controllers/complaintControllers.js";
-import { authorizeRoles, protect } from "../../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// USER - Create complaint
+// ------------------ ROUTES ------------------
+
+// USER - Create complaint (Mobile App or Helpdesk)
 router.post("/", createComplaint);
 
-// SUPERVISOR - Review complaint
-router.put(
-  "/:id/review",
+// SUPERVISOR / ADMIN - Update complaint (review, material demand, resolve, verify)
+router.patch("/:id", updateComplaint);
 
-  reviewComplaint
-);
-
-router.put(
-  "/:id/resolve",
-
-  resolveComplaint
-);
-
-// ADMIN - Get all complaints
+// ADMIN / SUPERVISOR - Get complaints with filters & pagination
 router.get("/", getAllComplaints);
 
 export default router;

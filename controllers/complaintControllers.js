@@ -1,6 +1,7 @@
 import Complaint from "../models/Complaints.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
+// USER - Create a new complaint (from App or Helpdesk)
 export const createComplaint = async (req, res) => {
   try {
     const {
@@ -11,15 +12,12 @@ export const createComplaint = async (req, res) => {
       complaintTitle,
       complaintDescription,
       images,
+      source, // optional: "MobileApp" or "Helpdesk"
     } = req.body;
 
-    if (!complaintTitle || complaintTitle.trim() === "") {
-      return sendError(res, "Complaint title is required", 400);
-    }
-
-    if (!complaintDescription || complaintDescription.trim() === "") {
+    if (!complaintTitle?.trim()) return sendError(res, "Complaint title is required", 400);
+    if (!complaintDescription?.trim())
       return sendError(res, "Complaint description is required", 400);
-    }
 
     const complaint = await Complaint.create({
       siteId,
@@ -29,6 +27,7 @@ export const createComplaint = async (req, res) => {
       complaintTitle,
       complaintDescription,
       images,
+      status: "New",
     });
 
     return sendSuccess(res, "Complaint submitted successfully", complaint, 201);
@@ -37,58 +36,87 @@ export const createComplaint = async (req, res) => {
   }
 };
 
-// SUPERVISOR - Review complaint
-export const reviewComplaint = async (req, res) => {
+
+
+// 🔄 UNIVERSAL UPDATE HANDLER
+export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, supervisorComments, supervisorImages } = req.body;
+    const {
+      action, // "review", "raiseMaterialDemand", "resolve", "verifyResolution"
+      supervisorComments,
+      supervisorImages,
+      resolvedImages,
+      customerConfirmed,
+      materialDemand, // expected { materialName, quantity, reason }
+    } = req.body;
 
-    const complaint = await Complaint.findByIdAndUpdate(
-      id,
-      {
-        status: status || "Under Review",
-        supervisorId: req.user.id,
-        supervisorComments,
-        supervisorImages,
-        verifiedAt: new Date(),
-      },
-      { new: true }
-    );
+    if (!action) return sendError(res, "Action type is required", 400);
 
+    const complaint = await Complaint.findById(id);
     if (!complaint) return sendError(res, "Complaint not found", 404);
 
-    return sendSuccess(res, "Complaint reviewed successfully", complaint, 200);
+    switch (action) {
+      // Step 1️⃣: Supervisor reviews complaint
+      case "review":
+        complaint.status = "Under Review";
+        complaint.supervisorId = req.user.id;
+        complaint.supervisorComments = supervisorComments;
+        complaint.supervisorImages = supervisorImages;
+        complaint.verifiedAt = new Date();
+        break;
+
+      // Step 2️⃣: Supervisor raises material demand (if required)
+      case "raiseMaterialDemand":
+        if (!materialDemand)
+          return sendError(res, "Material demand details are required", 400);
+        complaint.status = "Material Demand Raised";
+        complaint.materialDemand = materialDemand;
+        complaint.materialDemandRaisedBy = req.user.id;
+        complaint.materialDemandRaisedAt = new Date();
+        break;
+
+      // Step 3️⃣: Supervisor resolves complaint
+      case "resolve":
+        complaint.status = "Resolved";
+        complaint.resolvedBy = req.user.id;
+        complaint.resolvedImages = resolvedImages;
+        complaint.resolvedAt = new Date();
+        break;
+
+      // Step 4️⃣: Customer Care verifies resolution
+      case "verifyResolution":
+        if (customerConfirmed) {
+          complaint.status = "Closed";
+          complaint.closedBy = req.user.id;
+          complaint.closedAt = new Date();
+        } else {
+          complaint.status = "Repushed";
+          complaint.repushedCount = (complaint.repushedCount || 0) + 1;
+          complaint.repushedAt = new Date();
+        }
+        break;
+
+      default:
+        return sendError(res, "Invalid action type", 400);
+    }
+
+    await complaint.save();
+
+    return sendSuccess(
+      res,
+      `Complaint updated successfully for action: ${action}`,
+      complaint,
+      200
+    );
   } catch (error) {
-    return sendError(res, "Failed to review complaint", 500, error.message);
+    return sendError(res, "Failed to update complaint", 500, error.message);
   }
 };
 
-// SUPERVISOR or ADMIN - Mark as resolved
-export const resolveComplaint = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { resolvedImages } = req.body;
 
-    const complaint = await Complaint.findByIdAndUpdate(
-      id,
-      {
-        status: "Resolved",
-        resolvedBy: req.user.id,
-        resolvedImages,
-        resolvedAt: new Date(),
-      },
-      { new: true }
-    );
 
-    if (!complaint) return sendError(res, "Complaint not found", 404);
-
-    return sendSuccess(res, "Complaint marked as resolved", complaint, 200);
-  } catch (error) {
-    return sendError(res, "Failed to resolve complaint", 500, error.message);
-  }
-};
-
-// ADMIN - Get all complaints with filters & pagination
+// 🧾 ADMIN / SUPERVISOR - Get all complaints with filters & pagination
 export const getAllComplaints = async (req, res) => {
   try {
     const {
@@ -96,6 +124,11 @@ export const getAllComplaints = async (req, res) => {
       fromDate,
       toDate,
       status,
+      siteId,
+      projectId,
+      supervisorId,
+      userId,
+      source,
       isPagination = "true",
       page = 1,
       limit = 10,
@@ -103,7 +136,7 @@ export const getAllComplaints = async (req, res) => {
 
     const match = {};
 
-    if (search && search.trim() !== "") {
+    if (search?.trim()) {
       const regex = new RegExp(search.trim(), "i");
       match.$or = [
         { complaintTitle: { $regex: regex } },
@@ -111,9 +144,12 @@ export const getAllComplaints = async (req, res) => {
       ];
     }
 
-    if (status) {
-      match.status = status;
-    }
+    if (status) match.status = status;
+    if (siteId) match.siteId = siteId;
+    if (projectId) match.projectId = projectId;
+    if (supervisorId) match.supervisorId = supervisorId;
+    if (userId) match.userId = userId;
+    if (source) match.source = source;
 
     if (fromDate || toDate) {
       match.createdAt = {};
@@ -126,9 +162,9 @@ export const getAllComplaints = async (req, res) => {
     }
 
     let query = Complaint.find(match)
-      .populate("userId", "name email")
-      .populate("supervisorId", "name email")
-      .populate("resolvedBy", "name email")
+      .populate("userId", "name email role")
+      .populate("supervisorId", "name email role")
+      .populate("resolvedBy", "name email role")
       .populate("siteId", "siteName")
       .populate("projectId", "projectName")
       .populate("unitId", "unitType unitNumber")
