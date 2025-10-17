@@ -95,8 +95,10 @@ export const getUsers = async (req, res) => {
         .select("-password")
         .sort({ [sortBy]: sortOrder })
         .skip(skip)
-        .limit(parseInt(limit));
-
+        .limit(parseInt(limit))
+        .populate("siteId") 
+        .populate("projectId")
+        .populate("unitId"); 
       totalUsers = await User.countDocuments(query);
       totalPages = Math.ceil(totalUsers / parseInt(limit));
     }
