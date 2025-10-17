@@ -2,7 +2,7 @@ import User from "../models/User.modal.js";
 import bcrypt from "bcryptjs";
 import Tenant from "../models/Tenant.modal.js";
 import Landlord from "../models/LandLord.modal.js";
-
+import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
 // Create user (admin only) - alternative to register route
 export const createUser = async (req, res) => {
@@ -37,30 +37,91 @@ export const createUser = async (req, res) => {
   }
 };
 
-// GET /api/users - list all users
+// GET /api/users?role=landlord&name=mehdi&page=1&limit=10&sortBy=createdAt&order=desc
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
+    const {
+      page = 1,
+      limit = 10,
+      role,
+      name,
+      phone,
+      email,
+      siteId,
+      projectId,
+      createdBy,
+      isActive,
+      startDate,
+      endDate,
+      sortBy = "createdAt",
+      order = "desc",
+    } = req.query;
 
-    // Populate referenceId dynamically
+    const query = {};
+
+    // 🧩 Filters
+    if (role) query.role = role;
+    if (name) query.name = { $regex: name, $options: "i" };
+    if (phone) query.phone = { $regex: phone, $options: "i" };
+    if (email) query.email = { $regex: email, $options: "i" };
+    if (siteId) query.siteId = siteId;
+    if (projectId) query.projectId = projectId;
+    if (createdBy) query.createdBy = createdBy;
+    if (isActive !== undefined) query.isActive = isActive === "true";
+
+    // 🗓️ Date range filter
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    // 🧮 Pagination setup
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const sortOrder = order === "asc" ? 1 : -1;
+
+    // ⚙️ Fetch users
+    const users = await User.find(query)
+      .select("-password")
+      .sort({ [sortBy]: sortOrder })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // 🔁 Populate referenceId dynamically
     const populatedUsers = await Promise.all(
       users.map(async (user) => {
         if (!user.referenceId) return user;
+
         let refDoc = null;
         if (user.role === "landlord") {
           refDoc = await Landlord.findById(user.referenceId);
         } else if (user.role === "tenant") {
           refDoc = await Tenant.findById(user.referenceId);
         }
+
         return { ...user.toObject(), referenceId: refDoc };
       })
     );
 
-    res.json(populatedUsers);
+    // 📊 Count for pagination
+    const totalUsers = await User.countDocuments(query);
+    const totalPages = Math.ceil(totalUsers / parseInt(limit));
+
+    return sendSuccess(
+      res,
+      "Users fetched successfully",
+      {
+        success: true,
+        data: populatedUsers,
+        totalUsers,
+        totalPages,
+        currentPage: parseInt(page),
+        limit: parseInt(limit),
+      },
+      200
+    );
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error fetching users", error: err.message });
+    return sendError(res, "Error fetching users", 500, err.message);
   }
 };
 

@@ -119,6 +119,9 @@ export const addLandlord = async (req, res) => {
       password: `Abc@123`,
       role: "landlord",
       referenceId: landlord?._id,
+      siteId, // ✅ from req.body
+      projectId, // ✅ from req.body
+      unitId: unitIds[0] || null, // ✅ first unit
     });
 
     // 🔹 Save user ID back to landlord

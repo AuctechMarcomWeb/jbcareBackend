@@ -39,6 +39,18 @@ const userSchema = new mongoose.Schema(
       minlength: 6,
     },
     referenceId: { type: mongoose.Schema.Types.ObjectId }, // link to landlord/tenant if needed
+    siteId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Site",
+    },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+    },
+    unitId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Unit",
+    },
   },
   {
     timestamps: true,
@@ -59,6 +71,9 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 };
 
 userSchema.index({ email: 1 });
+userSchema.index({ siteId: 1 });
+userSchema.index({ projectId: 1 });
+userSchema.index({ unitId: 1 });
 
 const User = mongoose.model("User", userSchema);
 export default User;

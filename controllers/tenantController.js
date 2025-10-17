@@ -101,6 +101,9 @@ export const addTenant = async (req, res) => {
       password: `${tenant?.name}123`, // or generate random
       role: "tenant",
       referenceId: tenant?._id, // optional to link
+      siteId, // ✅ added
+      projectId, // ✅ added
+      unitId, // ✅ added
     });
     // 🔹 Save userId back to tenant
     tenant.userId = createdUser._id;
