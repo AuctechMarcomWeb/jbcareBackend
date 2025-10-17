@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import Tenant from "../models/Tenant.modal.js";
 import Landlord from "../models/Landlord.modal.js";
 
+
 // Create user (admin only) - alternative to register route
 export const createUser = async (req, res) => {
   try {
