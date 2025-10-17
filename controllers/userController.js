@@ -85,7 +85,10 @@ export const getUsers = async (req, res) => {
       // ❌ No pagination — return all
       users = await User.find(query)
         .select("-password")
-        .sort({ [sortBy]: sortOrder });
+        .sort({ [sortBy]: sortOrder })
+        .populate("siteId") 
+        .populate("projectId")
+        .populate("unitId"); 
       totalUsers = users.length;
       totalPages = 1;
     } else {
