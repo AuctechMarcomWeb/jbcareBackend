@@ -1,4 +1,4 @@
-import Landlord from "../models/Landlord.modal.js";
+import Landlord from "../models/LandLord.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
