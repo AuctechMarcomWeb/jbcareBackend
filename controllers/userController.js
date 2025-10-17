@@ -37,7 +37,7 @@ export const createUser = async (req, res) => {
   }
 };
 
-// GET /api/users?role=landlord&name=mehdi&page=1&limit=10&sortBy=createdAt&order=desc
+// GET /api/users?role=landlord&name=mehdi&page=1&limit=10&sortBy=createdAt&order=desc&isPagination=true
 export const getUsers = async (req, res) => {
   try {
     const {
@@ -55,6 +55,7 @@ export const getUsers = async (req, res) => {
       endDate,
       sortBy = "createdAt",
       order = "desc",
+      isPagination = "true", // default to true
     } = req.query;
 
     const query = {};
@@ -76,16 +77,29 @@ export const getUsers = async (req, res) => {
       if (endDate) query.createdAt.$lte = new Date(endDate);
     }
 
-    // 🧮 Pagination setup
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sortOrder = order === "asc" ? 1 : -1;
 
-    // ⚙️ Fetch users
-    const users = await User.find(query)
-      .select("-password")
-      .sort({ [sortBy]: sortOrder })
-      .skip(skip)
-      .limit(parseInt(limit));
+    let users, totalUsers, totalPages;
+
+    if (isPagination === "false") {
+      // ❌ No pagination — return all
+      users = await User.find(query)
+        .select("-password")
+        .sort({ [sortBy]: sortOrder });
+      totalUsers = users.length;
+      totalPages = 1;
+    } else {
+      // 🧮 Pagination applied
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      users = await User.find(query)
+        .select("-password")
+        .sort({ [sortBy]: sortOrder })
+        .skip(skip)
+        .limit(parseInt(limit));
+
+      totalUsers = await User.countDocuments(query);
+      totalPages = Math.ceil(totalUsers / parseInt(limit));
+    }
 
     // 🔁 Populate referenceId dynamically
     const populatedUsers = await Promise.all(
@@ -103,10 +117,6 @@ export const getUsers = async (req, res) => {
       })
     );
 
-    // 📊 Count for pagination
-    const totalUsers = await User.countDocuments(query);
-    const totalPages = Math.ceil(totalUsers / parseInt(limit));
-
     return sendSuccess(
       res,
       "Users fetched successfully",
@@ -115,8 +125,8 @@ export const getUsers = async (req, res) => {
         data: populatedUsers,
         totalUsers,
         totalPages,
-        currentPage: parseInt(page),
-        limit: parseInt(limit),
+        currentPage: isPagination === "false" ? 1 : parseInt(page),
+        limit: isPagination === "false" ? totalUsers : parseInt(limit),
       },
       200
     );
