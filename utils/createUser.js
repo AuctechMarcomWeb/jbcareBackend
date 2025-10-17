@@ -1,7 +1,17 @@
 // authHelpers.js
 import User from "../models/User.modal.js";
 
-export const createUser = async ({ name, email, phone, password, role, referenceId }) => {
+export const createUser = async ({
+  name,
+  email,
+  phone,
+  password,
+  role,
+  referenceId,
+  siteId,
+  projectId,
+  unitId,
+}) => {
   // Check duplicate email/phone
   const existing = await User.findOne({ phone });
   if (existing) throw new Error("User with this phone already exists.");
@@ -13,6 +23,9 @@ export const createUser = async ({ name, email, phone, password, role, reference
     password, // hash if your model hashes
     role,
     referenceId,
+    siteId,
+    projectId,
+    unitId,
   });
 
   return user;
