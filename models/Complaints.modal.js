@@ -31,54 +31,54 @@ const complaintSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    images: [
-      {
-        type: String,
-      },
-    ],
+    images: [{ type: String }],
 
     status: {
       type: String,
-      enum: ["Pending", "Under Review", "Resolved", "Rejected"],
+      enum: [
+        "Pending",
+        "Under Review",
+        "Material Demand Raised",
+        "Resolved",
+        "Repushed",
+        "Closed",
+      ],
       default: "Pending",
     },
 
-    supervisorId: {
+    // Supervisor fields
+    supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    supervisorComments: { type: String },
+    supervisorImages: [{ type: String }],
+
+    // Material demand
+    materialDemand: {
+      materialName: String,
+      quantity: String,
+      reason: String,
+    },
+    materialDemandRaisedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    materialDemandRaisedAt: Date,
 
-    supervisorComments: {
-      type: String,
-    },
+    // Resolution fields
+    resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    resolvedImages: [{ type: String }],
+    resolvedAt: Date,
 
-    supervisorImages: [
-      {
-        type: String, // photo uploaded when reviewing complaint
-      },
-    ],
+    // Customer verification
+    closedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    closedAt: Date,
+    repushedCount: { type: Number, default: 0 },
+    repushedAt: Date,
 
-    resolvedImages: [
-      {
-        type: String, // photo uploaded when resolved
-      },
-    ],
-
-    resolvedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-
-    resolvedAt: {
-      type: Date,
-    },
-
-    verifiedAt: {
-      type: Date,
-    },
+    verifiedAt: Date,
   },
   { timestamps: true }
 );
 
-const Complaint = mongoose.model("Complaint", complaintSchema);
+const Complaint =
+  mongoose.models.Complaint || mongoose.model("Complaint", complaintSchema);
 export default Complaint;

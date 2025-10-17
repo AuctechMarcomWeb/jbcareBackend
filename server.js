@@ -12,6 +12,7 @@ import complaintRoutes from "./routes/User/complaintRoutes.js";
 import uploadRoutes from "./routes/utilRoutes/uploadRoutes.js";
 import landlordRoutes from "./routes/User/landlordRoutes.js";
 import tenantRoutes from "./routes/User/tenantRoutes.js";
+import supervisorRoutes from "./routes/User/supervisorRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -30,6 +31,7 @@ app.use("/api/units", unitRoutes);
 app.use("/api/complaints", complaintRoutes);
 app.use("/api/landlords", landlordRoutes);
 app.use("/api/tenants", tenantRoutes);
+app.use("/api/supervisors", supervisorRoutes);
 
 app.use("/api", uploadRoutes);
 
