@@ -1,5 +1,5 @@
 import Tenant from "../models/Tenant.modal.js";
-import Landlord from "../models/Landlord.modal.js";
+import Landlord from "../models/LandLord.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import Site from "../models/masters/site.modal.js";
