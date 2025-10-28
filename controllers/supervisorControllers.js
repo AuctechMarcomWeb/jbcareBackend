@@ -128,6 +128,9 @@ export const getSupervisors = async (req, res) => {
       const skip = (parseInt(page) - 1) * parseInt(limit);
       total = await Supervisor.countDocuments(filters);
       supervisors = await Supervisor.find(filters)
+        .populate("siteId") // 👈 populate siteId
+        .populate("projectId") // 👈 populate projectId
+        .populate("unitId")
         .sort({ [sortBy]: sortOrder })
         .skip(skip)
         .limit(parseInt(limit));
@@ -144,9 +147,13 @@ export const getSupervisors = async (req, res) => {
         200
       );
     } else {
-      supervisors = await Supervisor.find(filters).sort({
-        [sortBy]: sortOrder,
-      });
+      supervisors = await Supervisor.find(filters)
+        .populate("siteId")
+        .populate("projectId")
+        .populate("unitId")
+        .sort({
+          [sortBy]: sortOrder,
+        });
       total = supervisors.length;
       return sendSuccess(
         res,
