@@ -41,10 +41,16 @@ export const createSupervisor = async (req, res) => {
     if (!projectId) return sendError(res, "projectId is required", 400);
     if (!unitId) return sendError(res, "unitId is required", 400);
     if (
-      verificationDocuments &&
-      !validateVerificationDocs(verificationDocuments)
-    )
-      return sendError(res, "Invalid verificationDocuments format", 400);
+      !verificationDocuments ||
+      !Array.isArray(verificationDocuments) ||
+      verificationDocuments.length === 0
+    ) {
+      return sendError(
+        res,
+        "At least one verification document is required",
+        400
+      );
+    }
 
     // 1️⃣ Create Supervisor document first
     const supervisor = new Supervisor({
@@ -124,7 +130,7 @@ export const getSupervisors = async (req, res) => {
       supervisors = await Supervisor.find(filters)
         .sort({ [sortBy]: sortOrder })
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(parseInt(limit));
 
       return sendSuccess(
         res,
@@ -138,9 +144,9 @@ export const getSupervisors = async (req, res) => {
         200
       );
     } else {
-      supervisors = await Supervisor.find(filters)
-        .sort({ [sortBy]: sortOrder })
-     ;
+      supervisors = await Supervisor.find(filters).sort({
+        [sortBy]: sortOrder,
+      });
       total = supervisors.length;
       return sendSuccess(
         res,
