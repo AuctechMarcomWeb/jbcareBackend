@@ -28,7 +28,7 @@ export const createComplaint = async (req, res) => {
       complaintTitle,
       complaintDescription,
       images,
-      status: "New",
+      status: "Pending",
     });
 
     return sendSuccess(res, "Complaint submitted successfully", complaint, 201);
