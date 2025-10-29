@@ -15,7 +15,8 @@ export const createComplaint = async (req, res) => {
       source, // optional: "MobileApp" or "Helpdesk"
     } = req.body;
 
-    if (!complaintTitle?.trim()) return sendError(res, "Complaint title is required", 400);
+    if (!complaintTitle?.trim())
+      return sendError(res, "Complaint title is required", 400);
     if (!complaintDescription?.trim())
       return sendError(res, "Complaint description is required", 400);
 
@@ -36,12 +37,12 @@ export const createComplaint = async (req, res) => {
   }
 };
 
-
-
 // 🔄 UNIVERSAL UPDATE HANDLER
 export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log("Complaint update id==>", id);
+
     const {
       action, // "review", "raiseMaterialDemand", "resolve", "verifyResolution"
       supervisorComments,
@@ -49,10 +50,11 @@ export const updateComplaint = async (req, res) => {
       resolvedImages,
       customerConfirmed,
       materialDemand, // expected { materialName, quantity, reason }
+      userId,
     } = req.body;
 
     if (!action) return sendError(res, "Action type is required", 400);
-
+    if (!userId) return sendError(res, "User ID is required", 400);
     const complaint = await Complaint.findById(id);
     if (!complaint) return sendError(res, "Complaint not found", 404);
 
@@ -60,7 +62,7 @@ export const updateComplaint = async (req, res) => {
       // Step 1️⃣: Supervisor reviews complaint
       case "review":
         complaint.status = "Under Review";
-        complaint.supervisorId = req.user.id;
+        complaint.supervisorId = userId;
         complaint.supervisorComments = supervisorComments;
         complaint.supervisorImages = supervisorImages;
         complaint.verifiedAt = new Date();
@@ -72,14 +74,14 @@ export const updateComplaint = async (req, res) => {
           return sendError(res, "Material demand details are required", 400);
         complaint.status = "Material Demand Raised";
         complaint.materialDemand = materialDemand;
-        complaint.materialDemandRaisedBy = req.user.id;
+        complaint.materialDemandRaisedBy = userId;
         complaint.materialDemandRaisedAt = new Date();
         break;
 
       // Step 3️⃣: Supervisor resolves complaint
       case "resolve":
         complaint.status = "Resolved";
-        complaint.resolvedBy = req.user.id;
+        complaint.resolvedBy = userId;
         complaint.resolvedImages = resolvedImages;
         complaint.resolvedAt = new Date();
         break;
@@ -88,7 +90,7 @@ export const updateComplaint = async (req, res) => {
       case "verifyResolution":
         if (customerConfirmed) {
           complaint.status = "Closed";
-          complaint.closedBy = req.user.id;
+          complaint.closedBy = userId;
           complaint.closedAt = new Date();
         } else {
           complaint.status = "Repushed";
@@ -113,8 +115,6 @@ export const updateComplaint = async (req, res) => {
     return sendError(res, "Failed to update complaint", 500, error.message);
   }
 };
-
-
 
 // 🧾 ADMIN / SUPERVISOR - Get all complaints with filters & pagination
 export const getAllComplaints = async (req, res) => {
