@@ -163,8 +163,8 @@ export const getAllComplaints = async (req, res) => {
 
     let query = Complaint.find(match)
       .populate("userId", "name email role")
-      .populate("supervisorId", "name email role")
-      .populate("resolvedBy", "name email role")
+      .populate("supervisorId")
+      .populate("resolvedBy")
       .populate("siteId", "siteName")
       .populate("projectId", "projectName")
       .populate("unitId", "unitType unitNumber")
