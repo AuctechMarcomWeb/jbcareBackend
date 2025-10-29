@@ -172,21 +172,26 @@ export const getSupervisors = async (req, res) => {
 
 // ➤ Get Supervisor by ID
 export const getSupervisorById = async (req, res) => {
-  if (req?.params?.id) {
+  console.log("Supervisor id ==>", req?.params?.id);
+
+  if (!req?.params?.id) {
     return sendError(res, "Id not found/Invalid", 404, "Id not found/Invalid");
   }
   try {
-    const supervisor = await Supervisor.findById(req.params.id);
+    const supervisor = await Supervisor.findById(req.params.id)
+      .populate("siteId") // populate specific fields
+      .populate("projectId")
+      .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
-    return sendSuccess(res, supervisor);
+    return sendSuccess(res, "Fetched the supervisor by id", supervisor, 200);
   } catch (err) {
-    return sendError(res, err.message);
+    return sendError(res, err.message, 500, err.message);
   }
 };
 
 // ➤ Update Supervisor
 export const updateSupervisor = async (req, res) => {
-  if (req?.params?.id) {
+  if (!req?.params?.id) {
     return sendError(res, "Id not found/Invalid", 404, "Id not found/Invalid");
   }
   if (Object.keys(req.body).length === 0) {
@@ -199,17 +204,20 @@ export const updateSupervisor = async (req, res) => {
       {
         new: true,
       }
-    );
+    )
+      .populate("siteId") // populate specific fields
+      .populate("projectId")
+      .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
-    return sendSuccess(res, supervisor, "Supervisor updated successfully");
+    return sendSuccess(res, "Supervisor updated successfully", supervisor, 200);
   } catch (err) {
-    return sendError(res, err.message);
+    return sendError(res, err.message, 500, err.message);
   }
 };
 
 // ➤ Delete Supervisor
 export const deleteSupervisor = async (req, res) => {
-  if (req?.params?.id) {
+  if (!req?.params?.id) {
     return sendError(res, "Id not found/Invalid", 404, "Id not found/Invalid");
   }
   try {
