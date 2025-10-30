@@ -55,7 +55,7 @@ export const createUnit = async (req, res) => {
   }
 };
 
-// ✅ Get all Units with filters, search, pagination
+// ✅ Get all Units with filters, search, pagination, and sort order
 export const getAllUnits = async (req, res) => {
   try {
     const {
@@ -66,6 +66,7 @@ export const getAllUnits = async (req, res) => {
       status,
       fromDate,
       toDate,
+      order = "desc", // 🔹 Default sort order
       isPagination = "true",
       page = 1,
       limit = 10,
@@ -73,6 +74,7 @@ export const getAllUnits = async (req, res) => {
 
     const match = {};
 
+    // 🔍 Search filter
     if (search && search.trim() !== "") {
       const regex = new RegExp(search.trim(), "i");
       match.$or = [
@@ -82,47 +84,58 @@ export const getAllUnits = async (req, res) => {
       ];
     }
 
-    if (siteId) match.siteId = siteId;
-    if (projectId) match.projectId = projectId;
-    if (unitTypeId) match.unitTypeId = unitTypeId;
-    if (status !== undefined) match.status = status === "true";
+    // 🎯 Basic filters
+    if (siteId && siteId !== "null" && siteId !== "undefined")
+      match.siteId = siteId;
+    if (projectId && projectId !== "null" && projectId !== "undefined")
+      match.projectId = projectId;
+    if (unitTypeId && unitTypeId !== "null" && unitTypeId !== "undefined")
+      match.unitTypeId = unitTypeId;
+    if (status !== undefined && status !== "null" && status !== "undefined")
+      match.status = status === "true";
 
+    // 📅 Date range filter
     if (fromDate || toDate) {
       match.createdAt = {};
       if (fromDate) match.createdAt.$gte = new Date(fromDate);
       if (toDate) {
-        const nextDay = new Date(toDate);
-        nextDay.setDate(nextDay.getDate() + 1);
-        match.createdAt.$lt = nextDay;
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        match.createdAt.$lte = endOfDay;
       }
     }
 
+    // 🧾 Sort order (latest first by default)
+    const sortOrder = order === "asc" ? 1 : -1;
+
+    // 🏗️ Query setup
     let query = Unit.find(match)
       .populate("siteId", "siteName")
       .populate("projectId", "projectName")
       .populate("unitTypeId", "title")
-      .populate("landlordId", "name phone email") // populate current landlord
+      .populate("landlordId", "name phone email")
       .populate({
         path: "landlordHistory.landlordId",
-        select: "name phone email", // populate landlord details in history
+        select: "name phone email",
       })
       .populate({
         path: "tenantHistory.tenantId",
-        select: "name phone email", // populate tenant details in history
+        select: "name phone email",
       })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: sortOrder });
 
+    // 📄 Pagination
     const total = await Unit.countDocuments(match);
-
     if (isPagination === "true") {
       query.skip((page - 1) * parseInt(limit)).limit(parseInt(limit));
     }
 
     const units = await query;
 
+    // ✅ Response
     return sendSuccess(
       res,
-      "Units fetched successfully",
+      units.length ? "Units fetched successfully" : "No units found.",
       {
         units,
         totalUnits: total,
@@ -132,6 +145,7 @@ export const getAllUnits = async (req, res) => {
       200
     );
   } catch (err) {
+    console.error("Get Units Error:", err);
     return sendError(res, "Failed to fetch Units", 500, err.message);
   }
 };
