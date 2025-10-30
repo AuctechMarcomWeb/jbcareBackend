@@ -57,8 +57,7 @@ export const createProject = async (req, res) => {
     return sendError(res, "Failed to create project", 500, err.message);
   }
 };
-
-// ✅ Get All Projects (with search, date filter, pagination)
+// ✅ Get All Projects (with search, date filter, pagination, and sort order)
 export const getAllProjects = async (req, res) => {
   try {
     const {
@@ -66,6 +65,7 @@ export const getAllProjects = async (req, res) => {
       fromDate,
       toDate,
       siteId,
+      order = "desc", // 🔹 default: latest first
       isPagination = "true",
       page = 1,
       limit = 10,
@@ -73,54 +73,76 @@ export const getAllProjects = async (req, res) => {
 
     const match = {};
 
+    // 🧩 Validate siteId before adding
     if (siteId && siteId.match(/^[0-9a-fA-F]{24}$/)) {
       match.siteId = siteId;
     }
 
-    // 🔎 Search filter (by projectName or projectAddress)
-    if (search && search.trim() !== "") {
-      const regex = new RegExp(search.trim(), "i");
+    // 🔍 Search filter (ignore null/undefined)
+    const searchTerm =
+      typeof search === "string" &&
+      search.trim() !== "" &&
+      search.trim().toLowerCase() !== "null" &&
+      search.trim().toLowerCase() !== "undefined"
+        ? search.trim()
+        : null;
+
+    if (searchTerm) {
+      const regex = new RegExp(searchTerm, "i");
       match.$or = [
         { projectName: { $regex: regex } },
         { projectAddress: { $regex: regex } },
       ];
     }
 
-    // 📅 Date filter
+    // 📅 Date range filter
     if (fromDate || toDate) {
       match.createdAt = {};
       if (fromDate) match.createdAt.$gte = new Date(fromDate);
       if (toDate) {
-        const nextDay = new Date(toDate);
-        nextDay.setDate(nextDay.getDate() + 1);
-        match.createdAt.$lt = nextDay;
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        match.createdAt.$lte = endOfDay;
       }
     }
 
-    const query = Project.find(match)
+    // 🔄 Sort order
+    const sortOrder = order === "asc" ? 1 : -1;
+
+    // 🏗️ Query with sort
+    let query = Project.find(match)
       .populate("siteId")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: sortOrder });
 
     const total = await Project.countDocuments(match);
 
+    // 📄 Pagination (optional)
     if (isPagination === "true") {
-      query.skip((page - 1) * limit).limit(parseInt(limit));
+      query = query
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit));
     }
 
     const projects = await query;
 
     return sendSuccess(
       res,
-      "Projects fetched successfully",
+      projects.length ? "Projects fetched successfully" : "No projects found.",
       {
         projects,
         totalProjects: total,
-        totalPages: Math.ceil(total / limit),
+        totalPages:
+          isPagination === "true"
+            ? Math.ceil(total / Number(limit))
+            : total > 0
+            ? 1
+            : 0,
         currentPage: Number(page),
       },
       200
     );
   } catch (err) {
+    console.error("Get Projects Error:", err);
     return sendError(res, "Failed to fetch projects", 500, err.message);
   }
 };

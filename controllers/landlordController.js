@@ -135,7 +135,7 @@ export const addLandlord = async (req, res) => {
   }
 };
 
-// 🟡 Get Landlords (with filters + pagination + date range)
+// 🟡 Get Landlords (with filters + pagination + date range + latest first)
 export const getLandlords = async (req, res) => {
   try {
     const {
@@ -146,12 +146,14 @@ export const getLandlords = async (req, res) => {
       isActive,
       fromDate,
       toDate,
+      order = "desc", // 🔹 optional: "asc" or "desc"
       page = 1,
       limit = 10,
     } = req.query;
 
     const query = {};
 
+    // ✅ Handle null/undefined safely
     if (siteId && siteId !== "null" && siteId !== "undefined")
       query.siteId = siteId;
     if (projectId && projectId !== "null" && projectId !== "undefined")
@@ -168,7 +170,9 @@ export const getLandlords = async (req, res) => {
     }
 
     // 🔍 Filter by specific unitId
-    if (unitId) query.unitIds = { $in: [new mongoose.Types.ObjectId(unitId)] };
+    if (unitId && unitId !== "null" && unitId !== "undefined") {
+      query.unitIds = { $in: [new mongoose.Types.ObjectId(unitId)] };
+    }
 
     // 📅 Filter by Date Range (createdAt)
     if (fromDate || toDate) {
@@ -182,31 +186,22 @@ export const getLandlords = async (req, res) => {
       }
     }
 
+    // 🧾 Sort order (latest first by default)
+    const sortOrder = order === "asc" ? 1 : -1;
+
     const landlords = await Landlord.find(query)
       .populate("siteId projectId unitIds")
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .sort({ createdAt: -1 });
-
-    if (landlords.length === 0) {
-      return sendSuccess(
-        res,
-        "No landlords found.",
-        {
-          data: [],
-          total: 0,
-          page: Number(page),
-          limit: Number(limit),
-        },
-        200
-      );
-    }
+      .sort({ createdAt: sortOrder });
 
     const total = await Landlord.countDocuments(query);
 
     return sendSuccess(
       res,
-      "Landlords fetched successfully.",
+      landlords.length
+        ? "Landlords fetched successfully."
+        : "No landlords found.",
       {
         data: landlords,
         total,
