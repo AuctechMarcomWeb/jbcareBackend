@@ -135,7 +135,7 @@ export const addLandlord = async (req, res) => {
   }
 };
 
-// 🟡 Get Landlords (with filters + pagination)
+// 🟡 Get Landlords (with filters + pagination + date range)
 export const getLandlords = async (req, res) => {
   try {
     const {
@@ -144,22 +144,44 @@ export const getLandlords = async (req, res) => {
       projectId,
       unitId,
       isActive,
+      fromDate,
+      toDate,
       page = 1,
       limit = 10,
     } = req.query;
 
     const query = {};
-    if (siteId) query.siteId = siteId;
-    if (projectId) query.projectId = projectId;
+
+    if (siteId && siteId !== "null" && siteId !== "undefined")
+      query.siteId = siteId;
+    if (projectId && projectId !== "null" && projectId !== "undefined")
+      query.projectId = projectId;
+
     if (isActive !== undefined) query.isActive = isActive === "true";
-    if (search)
+
+    if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
         { phone: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
       ];
+    }
+
     // 🔍 Filter by specific unitId
     if (unitId) query.unitIds = { $in: [new mongoose.Types.ObjectId(unitId)] };
+
+    // 📅 Filter by Date Range (createdAt)
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) query.createdAt.$gte = new Date(fromDate);
+      if (toDate) {
+        // Include entire day till 23:59:59
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = endOfDay;
+      }
+    }
+
     const landlords = await Landlord.find(query)
       .populate("siteId projectId unitIds")
       .skip((page - 1) * limit)
