@@ -74,6 +74,7 @@ userSchema.index({ email: 1 });
 userSchema.index({ siteId: 1 });
 userSchema.index({ projectId: 1 });
 userSchema.index({ unitId: 1 });
+userSchema.index({ referenceId: 1 });
 
 const User = mongoose.model("User", userSchema);
 export default User;
