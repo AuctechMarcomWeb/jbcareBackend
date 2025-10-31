@@ -4,6 +4,8 @@ import {
   createComplaint,
   updateComplaint,
   getAllComplaints,
+  deleteComplaint,
+  getComplaintsByUserOrId,
 } from "../../controllers/complaintControllers.js";
 
 const router = express.Router();
@@ -18,5 +20,13 @@ router.patch("/:id", updateComplaint);
 
 // ADMIN / SUPERVISOR - Get complaints with filters & pagination
 router.get("/", getAllComplaints);
+
+router.delete("/:id", deleteComplaint);
+
+// 🔹 Get all complaints for a user
+router.get("/user/:userId", getComplaintsByUserOrId);
+
+// 🔹 Get a single complaint by its ID
+router.get("/:complaintId", getComplaintsByUserOrId);
 
 export default router;
