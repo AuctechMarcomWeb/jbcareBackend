@@ -85,8 +85,8 @@ export const getAllMaintainCharges = async (req, res) => {
 
     // 🔹 Query with populate
     const charges = await MaintainCharges.find(filters)
-      .populate("siteId", "name")
-      .populate("unitId", "name")
+      .populate("siteId", "siteName")
+      .populate("unitId", "unitNumber")
       .sort(sortOptions);
 
     // 🔹 Manual search (populate fields)
@@ -135,8 +135,8 @@ export const getMaintainChargeById = async (req, res) => {
   try {
     const { id } = req.params;
     const charge = await MaintainCharges.findById(id)
-      .populate("siteId", "name")
-      .populate("unitId", "name");
+      .populate("siteId", "siteName")
+      .populate("unitId", "unitNumber");
 
     if (!charge) return sendError(res, "Maintenance charge not found");
     return sendSuccess(res, "Maintenance charge fetched successfully", charge);
