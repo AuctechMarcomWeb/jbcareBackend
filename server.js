@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
+
+import "./utils/cron-jobs.js";
 import authRoutes from "./routes/Auth/authRoutes.js";
 import userRoutes from "./routes/User/userRoutes.js";
 import siteRoutes from "./routes/masters/siteRoutes.js";
@@ -14,7 +16,7 @@ import landlordRoutes from "./routes/User/landlordRoutes.js";
 import tenantRoutes from "./routes/User/tenantRoutes.js";
 import supervisorRoutes from "./routes/User/supervisorRoutes.js";
 import maintainCharge from "./routes/masters/maintainChargesRoutes.js";
-import maintenanceBillRoutes from './routes/Bills/maintenanceBillRoutes.js'
+import maintenanceBillRoutes from "./routes/Bills/maintenanceBillRoutes.js";
 
 dotenv.config();
 connectDB();

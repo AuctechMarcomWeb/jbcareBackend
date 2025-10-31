@@ -2,6 +2,7 @@ import MaintainCharges from "../models/MantainCharge.modal.js";
 import MaintenanceBill from "../models/MaintenanceBill.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
+import { generateMaintenanceBillCore } from "../services/maintenanceBillService.js";
 
 /**
  * 🧾 Generate or Overwrite Maintenance Bill (Admin)
@@ -9,106 +10,15 @@ import { sendError, sendSuccess } from "../utils/responseHandler.js";
  */
 export const generateMaintenanceBill = async (req, res) => {
   try {
-    const { siteId, unitId, landlordId, billingCycle = "monthly" } = req.body;
+    const result = await generateMaintenanceBillCore(req.body);
+console.log();
 
-    // 🔸 Validate required fields
-    if (!siteId || !unitId || !landlordId) {
-      return sendError(
-        res,
-        "Missing required fields (siteId, unitId, landlordId)"
-      );
+    if (!result.success) {
+      return sendError(res, result.message);
     }
 
-    // 🔹 1. Fetch active maintenance charge
-    const charge = await MaintainCharges.findOne({
-      siteId,
-      unitId,
-      isActive: true,
-    }).sort({ effectiveFrom: -1 });
-
-    if (!charge) {
-      return sendError(
-        res,
-        "No active maintenance charge found for this unit."
-      );
-    }
-
-    // 🔹 2. Define billing period based on cycle
-    const now = new Date();
-    let fromDate, toDate;
-
-    if (billingCycle === "monthly") {
-      fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    } else if (billingCycle === "quarterly") {
-      const quarterStart = Math.floor(now.getMonth() / 3) * 3;
-      fromDate = new Date(now.getFullYear(), quarterStart, 1);
-      toDate = new Date(now.getFullYear(), quarterStart + 3, 0);
-    } else if (billingCycle === "annual") {
-      fromDate = new Date(now.getFullYear(), 0, 1);
-      toDate = new Date(now.getFullYear(), 11, 31);
-    } else {
-      return sendError(
-        res,
-        "Invalid billing cycle. Use monthly, quarterly, or annual."
-      );
-    }
-
-    // 🔹 3. Remove any existing bill for this unit and period
-    await MaintenanceBill.deleteMany({
-      siteId,
-      unitId,
-      landlordId,
-      fromDate: { $lte: toDate },
-      toDate: { $gte: fromDate },
-    });
-
-    // 🔹 4. Determine months in cycle
-    const cycleMonths =
-      billingCycle === "quarterly" ? 3 : billingCycle === "annual" ? 12 : 1;
-
-    // 🔹 5. Calculate maintenance amount
-    let maintenanceAmount = 0;
-    if (charge.rateType === "per_sqft") {
-      const unit = await Unit.findById(unitId);
-      if (!unit?.areaSqFt) {
-        return sendError(
-          res,
-          "Unit size (areaSqFt) not found for per_sqft calculation."
-        );
-      }
-      maintenanceAmount = charge.rateValue * unit.areaSqFt * cycleMonths;
-    } else {
-      maintenanceAmount = charge.rateValue * cycleMonths;
-    }
-
-    // 🔹 6. Calculate GST and total
-    const gstAmount = (maintenanceAmount * charge.gstPercent) / 100;
-    const totalAmount = maintenanceAmount + gstAmount;
-
-    // 🔹 7. Save new bill
-    const newBill = new MaintenanceBill({
-      landlordId,
-      siteId,
-      unitId,
-      fromDate,
-      toDate,
-      maintenanceAmount: Number(maintenanceAmount.toFixed(2)),
-      gstAmount: Number(gstAmount.toFixed(2)),
-      totalAmount: Number(totalAmount.toFixed(2)),
-      status: "Unpaid",
-      generatedOn: new Date(),
-    });
-
-    await newBill.save();
-
-    return sendSuccess(
-      res,
-      "✅ Maintenance bill generated successfully (previous bill replaced if existed)",
-      newBill
-    );
+    return sendSuccess(res, result.message, result.data);
   } catch (error) {
-    console.error("Generate Maintenance Bill Error:", error);
     return sendError(res, error.message);
   }
 };
