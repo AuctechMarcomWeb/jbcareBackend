@@ -1,5 +1,5 @@
 import MaintainCharges from "../models/MantainCharge.modal.js";
-import MaintenanceBill from "../models/maintainanceBill.modal.js"
+import MaintenanceBill from "../models/MaintenanceBill.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
