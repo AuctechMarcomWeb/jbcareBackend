@@ -23,6 +23,13 @@ const complaintSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Who created the complaint
+    addedBy: {
+      type: String,
+      enum: ["Landlord", "Tenant", "Admin"],
+      required: true,
+    },
+
     complaintTitle: {
       type: String,
       required: true,
@@ -33,6 +40,7 @@ const complaintSchema = new mongoose.Schema(
     },
     images: [{ type: String }],
 
+    // Current status
     status: {
       type: String,
       enum: [
@@ -45,6 +53,25 @@ const complaintSchema = new mongoose.Schema(
       ],
       default: "Pending",
     },
+
+    /**
+     * 🧾 Complete history of status updates
+     * - Tracks who made the update
+     * - Tracks their role (Admin, Supervisor, Landlord, Tenant)
+     * - Stores optional comment
+     */
+    statusHistory: [
+      {
+        status: { type: String },
+        updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        updatedByRole: {
+          type: String,
+          enum: ["Admin", "Supervisor", "Landlord", "Tenant"],
+        },
+        comment: { type: String },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
 
     // Supervisor fields
     supervisorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -78,6 +105,23 @@ const complaintSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+/**
+ * 🧠 Middleware to log status changes automatically
+ * (Controller should set: `complaint.updatedBy`, `complaint.updatedByRole`, and optional `complaint.comment`)
+ */
+complaintSchema.pre("save", function (next) {
+  if (this.isModified("status")) {
+    this.statusHistory.push({
+      status: this.status,
+      updatedBy: this.updatedBy || null,
+      updatedByRole: this.updatedByRole || null,
+      comment: this.comment || null,
+      updatedAt: new Date(),
+    });
+  }
+  next();
+});
 
 const Complaint =
   mongoose.models.Complaint || mongoose.model("Complaint", complaintSchema);
