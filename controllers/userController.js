@@ -86,9 +86,9 @@ export const getUsers = async (req, res) => {
       users = await User.find(query)
         .select("-password")
         .sort({ [sortBy]: sortOrder })
-        .populate("siteId") 
+        .populate("siteId")
         .populate("projectId")
-        .populate("unitId"); 
+        .populate("unitId");
       totalUsers = users.length;
       totalPages = 1;
     } else {
@@ -99,9 +99,9 @@ export const getUsers = async (req, res) => {
         .sort({ [sortBy]: sortOrder })
         .skip(skip)
         .limit(parseInt(limit))
-        .populate("siteId") 
+        .populate("siteId")
         .populate("projectId")
-        .populate("unitId"); 
+        .populate("unitId");
       totalUsers = await User.countDocuments(query);
       totalPages = Math.ceil(totalUsers / parseInt(limit));
     }
@@ -178,7 +178,47 @@ export const getUserById = async (req, res) => {
   }
 };
 
-// PUT /api/users/:id - update user (admin/supervisor or owner)
+// controllers/userController.js
+
+export const getUserByToken = async (req, res) => {
+  console.log("Request received from middleware", req.user);
+
+  try {
+    // ✅ req.user is already populated by protect middleware
+    if (!req.user) {
+      return sendError(
+        res,
+        "Not authorised or invalid token",
+        401,
+        "Not authorised or invalid token"
+      );
+    }
+
+    // Optional: If you want fresh data from DB (not from req.user)
+    const user = await User.findById(req.user._id).select("-password");
+
+    if (!user) {
+      return sendError(res, "User not found", 404, "User not found");
+    }
+    // 🔁 Dynamically fetch referenceId based on role
+    let refDoc = null;
+    if (user.role === "landlord") {
+      refDoc = await Landlord.findById(user.referenceId);
+    } else if (user.role === "tenant") {
+      refDoc = await Tenant.findById(user.referenceId);
+    }
+
+    // merge and send
+    const populatedUser = { ...user.toObject(), referenceId: refDoc };
+
+    return sendSuccess(res, "User fetched successfully", populatedUser, 200);
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return sendError(res, "Something went wrong", 500, error.message);
+  }
+};
+
+// PUT /api/user/:id - update user (admin/supervisor or owner)
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
