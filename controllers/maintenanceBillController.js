@@ -11,7 +11,7 @@ import { generateMaintenanceBillCore } from "../services/maintenanceBillService.
 export const generateMaintenanceBill = async (req, res) => {
   try {
     const result = await generateMaintenanceBillCore(req.body);
-console.log();
+    console.log();
 
     if (!result.success) {
       return sendError(res, result.message);
@@ -131,11 +131,14 @@ export const getAllMaintenanceBills = async (req, res) => {
 
 export const updateMaintenanceBill = async (req, res) => {
   try {
-    const { billId, ...updateFields } = req.body;
+    const { billId } = req.params;
+    const updateFields = req.body;
+
+    
 
     // 🔹 Validate billId
     if (!billId) {
-      return sendError(res, "Missing required field: billId");
+      return sendError(res, "Missing required parameter: billId");
     }
 
     // 🔹 Protect critical fields
