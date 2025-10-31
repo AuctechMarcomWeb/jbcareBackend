@@ -13,6 +13,6 @@ router.post("/generate", generateMaintenanceBill);
 // 📋 Get all bills (with filters)
 router.get("/", getAllMaintenanceBills);
 
-router.put("/", updateMaintenanceBill);
+router.put("/:billId", updateMaintenanceBill);
 
 export default router;
