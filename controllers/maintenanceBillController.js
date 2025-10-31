@@ -3,7 +3,6 @@ import MaintenanceBill from "../models/MaintenanceBill.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
-
 /**
  * 🧾 Generate or Overwrite Maintenance Bill (Admin)
  * Calculates maintenance based on rateType, area, and billing cycle
@@ -216,6 +215,44 @@ export const getAllMaintenanceBills = async (req, res) => {
     });
   } catch (error) {
     console.error("Get All Maintenance Bills Error:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const updateMaintenanceBill = async (req, res) => {
+  try {
+    const { billId, ...updateFields } = req.body;
+
+    // 🔹 Validate billId
+    if (!billId) {
+      return sendError(res, "Missing required field: billId");
+    }
+
+    // 🔹 Protect critical fields
+    const protectedFields = ["_id", "createdAt", "updatedAt"];
+    protectedFields.forEach((field) => delete updateFields[field]);
+
+    // 🔹 Always update timestamp
+    updateFields.updatedOn = new Date();
+
+    // 🔹 Update the bill
+    const updatedBill = await MaintenanceBill.findByIdAndUpdate(
+      billId,
+      { $set: updateFields },
+      { new: true }
+    );
+
+    if (!updatedBill) {
+      return sendError(res, "Maintenance bill not found.");
+    }
+
+    return sendSuccess(
+      res,
+      "Maintenance bill updated successfully",
+      updatedBill
+    );
+  } catch (error) {
+    console.error("Update Maintenance Bill Error:", error);
     return sendError(res, error.message);
   }
 };
