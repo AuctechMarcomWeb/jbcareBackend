@@ -8,7 +8,7 @@ import CronLog from "../models/utilsSchemas/CronLogs.modal.js";
  * 🕐 Monthly Auto Maintenance Bill Generator
  * Runs on the 1st day of every month at midnight
  */
-cron.schedule("* * * * *", async () => {
+cron.schedule("0 0 1 * *", async () => {
   console.log(
     "🧾 [CRON] Running automatic maintenance bill generation (Landlord-based)..."
   );
