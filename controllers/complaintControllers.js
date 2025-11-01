@@ -137,7 +137,7 @@ export const updateComplaint = async (req, res) => {
     complaint.updatedByRole = userRole;
     complaint.comment = comment || `Complaint ${newStatus}`;
 
-    await complaint.save();
+    await complaint.save({ validateModifiedOnly: true });
 
     return sendSuccess(
       res,

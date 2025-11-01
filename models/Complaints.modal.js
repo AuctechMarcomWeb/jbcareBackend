@@ -27,7 +27,6 @@ const complaintSchema = new mongoose.Schema(
     addedBy: {
       type: String,
       enum: ["Landlord", "Tenant", "Admin"],
-      required: true,
     },
 
     complaintTitle: {
