@@ -217,7 +217,7 @@ export const updateComplaint = async (req, res) => {
       /**
        * ✅ CLOSURE STAGE (Customer verification)
        */
-      case "close":
+      case "verifyResolution":
         if (!closedBy)
           return sendError(
             res,
