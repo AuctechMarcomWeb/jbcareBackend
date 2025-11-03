@@ -7,6 +7,7 @@ import {
   getUsers,
   updateUser,
   getUserByToken,
+  changePassword,
 } from "../../controllers/userController.js";
 import { protect } from "../../middleware/authMiddleware.js";
 
@@ -24,6 +25,10 @@ router.get("/:id", getUserById);
 
 // update (admin/supervisor or owner)
 router.put("/:id", updateUser);
+
+router.patch("/change-password/:id", changePassword);
+
+
 
 // delete (admin only)
 router.delete("/:id", deleteUser);

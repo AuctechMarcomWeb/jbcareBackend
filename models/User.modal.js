@@ -51,6 +51,8 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Unit",
     },
+    resetPasswordOTP: { type: String },
+    resetPasswordExpires: { type: Date },
   },
   {
     timestamps: true,

@@ -2,6 +2,7 @@ import User from "../models/User.modal.js";
 import bcrypt from "bcryptjs";
 import Tenant from "../models/Tenant.modal.js";
 import Landlord from "../models/LandLord.modal.js";
+
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
 // Create user (admin only) - alternative to register route
@@ -278,32 +279,38 @@ export const deleteUser = async (req, res) => {
 /**
  * 🔑 Change Password (for logged-in users)
  */
-// export const changePassword = async (req, res) => {
-//   try {
-//     const { userId, currentPassword, newPassword } = req.body;
+/**
+ * 🔑 Change Password (for logged-in users)
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const { id } = req.params; // userId from URL params
+    const { currentPassword, newPassword } = req.body;
 
-//     if (!userId || !currentPassword || !newPassword)
-//       return sendError(
-//         res,
-//         "All fields (userId, currentPassword, newPassword) are required",
-//         400
-//       );
+    // ✅ Validate required fields
+    if (!id || !currentPassword || !newPassword) {
+      return sendError(
+        res,
+        "All fields (userId in params, currentPassword, newPassword) are required",
+        400
+      );
+    }
 
-//     const user = await User.findById(userId);
-//     if (!user) return sendError(res, "User not found", 404);
+    const user = await User.findById(id);
+    if (!user) return sendError(res, "User not found", 404);
 
-//     // ✅ Verify old password
-//     const isMatch = await bcrypt.compare(currentPassword, user.password);
-//     if (!isMatch) return sendError(res, "Current password is incorrect", 400);
+    // ✅ Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) return sendError(res, "Current password is incorrect", 400);
 
-//     // ✅ Hash new password
-//     const salt = await bcrypt.genSalt(10);
-//     user.password = await bcrypt.hash(newPassword, salt);
-//     await user.save();
+    // ✅ Assign plain new password — pre('save') hook will hash automatically
+    user.password = newPassword;
 
-//     return sendSuccess(res, "Password changed successfully", null, 200);
-//   } catch (error) {
-//     console.error("Change Password Error:", error);
-//     return sendError(res, "Failed to change password", 500, error.message);
-//   }
-// };
+    await user.save();
+
+    return sendSuccess(res, "Password changed successfully", null, 200);
+  } catch (error) {
+    console.error("Change Password Error:", error);
+    return sendError(res, "Failed to change password", 500, error.message);
+  }
+};
