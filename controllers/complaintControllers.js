@@ -4,6 +4,13 @@ import { sendError, sendSuccess } from "../utils/responseHandler.js";
 /**
  * 🧾 USER / ADMIN - Create a new complaint
  */
+import User from "../models/User.modal.js";
+import Site from "../models/masters/site.modal.js";
+import Project from "../models/masters/Project.modal.js";
+import mongoose from "mongoose";
+import Unit from "../models/masters/Unit.modal.js";
+import Supervisor from "../models/Supervisors.modal.js";
+
 export const createComplaint = async (req, res) => {
   try {
     const {
@@ -15,10 +22,9 @@ export const createComplaint = async (req, res) => {
       complaintTitle,
       complaintDescription,
       images,
-      source, // optional: "MobileApp" or "Helpdesk"
     } = req.body;
 
-    // 🔹 Validation
+    // 🔹 Basic field validation
     if (!complaintTitle?.trim())
       return sendError(res, "Complaint title is required", 400);
     if (!complaintDescription?.trim())
@@ -29,6 +35,48 @@ export const createComplaint = async (req, res) => {
         "addedBy (Landlord, Tenant, or Admin) is required",
         400
       );
+
+    // 🔹 Validate ObjectIds
+    const objectIds = { siteId, projectId, unitId, userId };
+    for (const [key, value] of Object.entries(objectIds)) {
+      if (value && !mongoose.Types.ObjectId.isValid(value)) {
+        return sendError(res, `Invalid ${key}`, 400);
+      }
+    }
+
+    // 🔹 Check user existence
+    const user = await User.findById(userId);
+    if (!user) return sendError(res, "User not found", 404);
+
+    // 🔹 Validate site, project, and unit existence
+    const site = await Site.findById(siteId);
+    if (!site) return sendError(res, "Site not found", 404);
+
+    const project = await Project.findById(projectId);
+    if (!project) return sendError(res, "Project not found", 404);
+
+    const unit = await Unit.findById(unitId);
+    if (!unit) return sendError(res, "Unit not found", 404);
+
+    // 🔹 Hierarchy validation
+    if (String(project.siteId) !== String(site._id)) {
+      return sendError(
+        res,
+        "Project does not belong to the specified Site",
+        400
+      );
+    }
+
+    if (
+      String(unit.siteId) !== String(site._id) ||
+      String(unit.projectId) !== String(project._id)
+    ) {
+      return sendError(
+        res,
+        "Unit is not correctly linked with the given Site and Project",
+        400
+      );
+    }
 
     // 🔹 Create complaint
     const complaint = await Complaint.create({
@@ -53,105 +101,171 @@ export const createComplaint = async (req, res) => {
 
     return sendSuccess(res, "Complaint submitted successfully", complaint, 201);
   } catch (error) {
+    console.error("Create Complaint Error:", error);
     return sendError(res, "Failed to create complaint", 500, error.message);
   }
 };
 
 /**
- * 🔄 UNIVERSAL COMPLAINT UPDATE HANDLER
+ * 🔄 UPDATE COMPLAINT — status transitions + full context
  */
 export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
-
     const {
-      action, // "review", "raiseMaterialDemand", "resolve", "verifyResolution"
-      supervisorComments,
-      supervisorImages,
-      resolvedImages,
-      customerConfirmed,
-      materialDemand, // { materialName, quantity, reason }
+      action, // "review", "raiseMaterialDemand", "resolve", "verifyResolution", "repush"
       userId,
-      userRole, // "Admin" | "Supervisor" | "Landlord" | "Tenant"
-      comment, // optional message for status change
+      userRole,
+      comment,
+      supervisorDetails, // { supervisorId, comments, images }
+      materialDemand, // { materialName, quantity, reason, images }
+      resolution, // { resolvedBy, images, remarks }
+      closedBy, // userId (customer confirmation)
+      closedImages = [],
+      repushedDetails, // { count, reason }
     } = req.body;
 
-    if (!action) return sendError(res, "Action type is required", 400);
-    if (!userId) return sendError(res, "User ID is required", 400);
-    // if (!userRole) return sendError(res, "User role is required", 400);
+    // 🔹 Validate params
+    if (!id) return sendError(res, "Complaint ID is required", 400);
+    // if (!userId) return sendError(res, "User ID is required", 400);
+    if (!userRole) return sendError(res, "User role is required", 400);
+    if (!action) return sendError(res, "Action is required", 400);
 
     const complaint = await Complaint.findById(id);
     if (!complaint) return sendError(res, "Complaint not found", 404);
 
     let newStatus = null;
+    const newHistoryEntry = {
+      updatedBy: userId,
+      updatedByRole: userRole,
+      comment: comment || "",
+      updatedAt: new Date(),
+    };
 
+    // 🔁 Handle actions
     switch (action) {
-      // Step 1️⃣: Supervisor reviews complaint
+      /**
+       * 🧰 SUPERVISOR REVIEW STAGE
+       */
       case "review":
         newStatus = "Under Review";
-        complaint.supervisorId = userId;
-        complaint.supervisorComments = supervisorComments;
-        complaint.supervisorImages = supervisorImages;
-        complaint.verifiedAt = new Date();
+        newHistoryEntry.status = "Under Review";
+
+        // 🔹 Validate supervisor details
+        if (userRole !== "Admin") {
+          if (!supervisorDetails?.supervisorId) {
+            return sendError(res, "Supervisor ID is required", 400);
+          }
+
+          // 🧾 Check if supervisor exists
+          const supervisor = await Supervisor.findById(
+            supervisorDetails.supervisorId
+          );
+          if (!supervisor) {
+            return sendError(res, "Supervisor not found", 404);
+          }
+
+          // // 🧩 Check if supervisor is assigned to this unit
+          // if (
+          //   supervisor.unitId &&
+          //   String(supervisor.unitId) !== String(complaint.unitId)
+          // ) {
+          //   return sendError(
+          //     res,
+          //     "Supervisor is not assigned to this complaint’s unit",
+          //     400
+          //   );
+          // }
+
+          newHistoryEntry.supervisorDetails = {
+            supervisorId: supervisor._id,
+            comments: supervisorDetails.comments || "",
+            images: supervisorDetails.images || [],
+          };
+        } else {
+          // Admin can skip supervisor assignment
+          newHistoryEntry.supervisorDetails = {
+            supervisorId: null,
+            comments: supervisorDetails?.comments || "Reviewed by Admin",
+            images: supervisorDetails?.images || [],
+          };
+        }
         break;
 
-      // Step 2️⃣: Supervisor raises material demand
+      /**
+       * 🏗️ MATERIAL DEMAND STAGE
+       */
       case "raiseMaterialDemand":
         if (!materialDemand)
-          return sendError(res, "Material demand details are required", 400);
+          return sendError(res, "Material demand details required", 400);
         newStatus = "Material Demand Raised";
-        complaint.materialDemand = materialDemand;
-        complaint.materialDemandRaisedBy = userId;
-        complaint.materialDemandRaisedAt = new Date();
+        newHistoryEntry.status = "Material Demand Raised";
+        newHistoryEntry.materialDemand = materialDemand;
         break;
 
-      // Step 3️⃣: Supervisor resolves complaint
+      /**
+       * 🧰 RESOLUTION STAGE
+       */
       case "resolve":
+        if (!resolution)
+          return sendError(res, "Resolution details required", 400);
         newStatus = "Resolved";
-        complaint.resolvedBy = userId;
-        complaint.resolvedImages = resolvedImages;
-        complaint.resolvedAt = new Date();
+        newHistoryEntry.status = "Resolved";
+        newHistoryEntry.resolution = resolution;
         break;
 
-      // Step 4️⃣: Customer verifies or repushes
-      case "verifyResolution":
-        if (customerConfirmed) {
-          newStatus = "Closed";
-          complaint.closedBy = userId;
-          complaint.updatedByRole = userRole;
-          complaint.closedAt = new Date();
-        } else {
-          newStatus = "Repushed";
-          complaint.repushedCount = (complaint.repushedCount || 0) + 1;
-          complaint.repushedAt = new Date();
-        }
+      /**
+       * ✅ CLOSURE STAGE (Customer verification)
+       */
+      case "close":
+        if (!closedBy)
+          return sendError(
+            res,
+            "Customer (closedBy) required for closure",
+            400
+          );
+        newStatus = "Closed";
+        newHistoryEntry.status = "Closed";
+        newHistoryEntry.closedBy = closedBy;
+        newHistoryEntry.closedImages = closedImages;
+        break;
+
+      /**
+       * 🔁 REPUSH STAGE (Customer not satisfied)
+       */
+      case "repush":
+        newStatus = "Repushed";
+        newHistoryEntry.status = "Repushed";
+        newHistoryEntry.repushedDetails = repushedDetails || {
+          count: (complaint.repushedDetails?.count || 0) + 1,
+          reason: comment || "Repushed by user",
+          repushedAt: new Date(),
+        };
         break;
 
       default:
         return sendError(res, "Invalid action type", 400);
     }
 
-    // ✅ Apply new status and record in history
+    // 🔹 Apply update
     complaint.status = newStatus;
-    complaint.updatedBy = userId;
-    complaint.updatedByRole = userRole;
-    complaint.comment = comment || `Complaint ${newStatus}`;
+    complaint.statusHistory.push(newHistoryEntry);
 
-    await complaint.save({ validateModifiedOnly: true });
+    await complaint.save();
 
     return sendSuccess(
       res,
       `Complaint updated successfully (${newStatus})`,
-      complaint,
-      200
+      complaint
     );
   } catch (error) {
+    console.error("Update Complaint Error:", error);
     return sendError(res, "Failed to update complaint", 500, error.message);
   }
 };
 
 /**
- * 📋 ADMIN / SUPERVISOR - Get all complaints (with filters + pagination)
+ * 📋 GET ALL COMPLAINTS — with filters + pagination
  */
 export const getAllComplaints = async (req, res) => {
   try {
@@ -162,16 +276,18 @@ export const getAllComplaints = async (req, res) => {
       status,
       siteId,
       projectId,
-      supervisorId,
-      userId,
       addedBy,
-      source,
       isPagination = "true",
       page = 1,
       limit = 10,
     } = req.query;
 
     const match = {};
+
+    if (status) match.status = status;
+    if (siteId) match.siteId = siteId;
+    if (projectId) match.projectId = projectId;
+    if (addedBy) match.addedBy = addedBy;
 
     if (search?.trim()) {
       const regex = new RegExp(search.trim(), "i");
@@ -180,14 +296,6 @@ export const getAllComplaints = async (req, res) => {
         { complaintDescription: { $regex: regex } },
       ];
     }
-
-    if (status) match.status = status;
-    if (siteId) match.siteId = siteId;
-    if (projectId) match.projectId = projectId;
-    if (supervisorId) match.supervisorId = supervisorId;
-    if (userId) match.userId = userId;
-    if (addedBy) match.addedBy = addedBy;
-    if (source) match.source = source;
 
     if (fromDate || toDate) {
       match.createdAt = {};
@@ -201,8 +309,6 @@ export const getAllComplaints = async (req, res) => {
 
     let query = Complaint.find(match)
       .populate("userId", "name email role")
-      .populate("supervisorId", "name email role")
-      .populate("resolvedBy", "name email role")
       .populate("siteId", "siteName")
       .populate("projectId", "projectName")
       .populate("unitId", "unitType unitNumber")
@@ -215,18 +321,12 @@ export const getAllComplaints = async (req, res) => {
     }
 
     const complaints = await query;
-
-    return sendSuccess(
-      res,
-      "Complaints fetched successfully",
-      {
-        complaints,
-        totalComplaints: total,
-        totalPages: Math.ceil(total / limit),
-        currentPage: Number(page),
-      },
-      200
-    );
+    return sendSuccess(res, "Complaints fetched successfully", {
+      complaints,
+      totalComplaints: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+    });
   } catch (error) {
     return sendError(res, "Failed to fetch complaints", 500, error.message);
   }
@@ -302,7 +402,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
         .sort({ createdAt: -1 });
 
       if (!complaints.length)
-        return sendError(res, "No complaints found for this user", 404);
+        return sendSuccess(res, "No complaints found for this user",complaints, 404);
     }
 
     return sendSuccess(res, "Complaints fetched successfully", complaints, 200);
