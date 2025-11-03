@@ -7,7 +7,7 @@ const { Schema } = mongoose;
  */
 const SupervisorDetailsSchema = new Schema(
   {
-    supervisorId: { type: Schema.Types.ObjectId, ref: "User" },
+    supervisorId: { type: Schema.Types.ObjectId, ref: "Supervisor" },
     comments: { type: String, trim: true },
     images: [{ type: String }],
   },
