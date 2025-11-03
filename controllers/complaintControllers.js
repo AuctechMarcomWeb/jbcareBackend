@@ -376,37 +376,107 @@ export const deleteComplaint = async (req, res) => {
 export const getComplaintsByUserOrId = async (req, res) => {
   try {
     const { userId, complaintId } = req.params;
+    const {
+      status,
+      fromDate,
+      toDate,
+      search,
+      isPagination = "true",
+      page = 1,
+      limit = 10,
+    } = req.query;
 
     if (!userId && !complaintId)
       return sendError(res, "Please provide either userId or complaintId", 400);
 
-    let complaints;
+    let match = {};
 
+    // 🔹 If fetching a single complaint
     if (complaintId) {
-      // 🔹 Fetch single complaint
-      complaints = await Complaint.findById(complaintId)
+      const complaint = await Complaint.findById(complaintId)
         .populate("userId", "name email role")
-        .populate("supervisorId", "name email role")
-        .populate("resolvedBy", "name email role")
+        .populate({
+          path: "statusHistory.supervisorDetails.supervisorId",
+          select: "name email phone", // optional, select desired fields
+        })
+        .populate({
+          path: "statusHistory.resolution.resolvedBy",
+          select: "name phone email", // fields from User model
+        })
+
         .populate("siteId", "siteName")
         .populate("projectId", "projectName")
         .populate("unitId", "unitType unitNumber");
 
-      if (!complaints) return sendError(res, "Complaint not found", 404);
-    } else {
-      // 🔹 Fetch all complaints for that user
-      complaints = await Complaint.find({ userId })
-        .populate("siteId", "siteName")
-        .populate("projectId", "projectName")
-        .populate("unitId", "unitType unitNumber")
-        .sort({ createdAt: -1 });
+      if (!complaint) return sendError(res, "Complaint not found", 404);
 
-      if (!complaints.length)
-        return sendSuccess(res, "No complaints found for this user",complaints, 404);
+      return sendSuccess(res, "Complaint fetched successfully", complaint, 200);
     }
 
-    return sendSuccess(res, "Complaints fetched successfully", complaints, 200);
+    // 🔹 Building filters for user complaints
+    match.userId = userId;
+
+    if (status) match.status = status;
+
+    if (search?.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      match.$or = [
+        { complaintTitle: { $regex: regex } },
+        { complaintDescription: { $regex: regex } },
+      ];
+    }
+
+    if (fromDate || toDate) {
+      match.createdAt = {};
+      if (fromDate) match.createdAt.$gte = new Date(fromDate);
+      if (toDate) {
+        const nextDay = new Date(toDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        match.createdAt.$lt = nextDay;
+      }
+    }
+
+    // 🔹 Query setup
+    let query = Complaint.find(match)
+      .populate("userId", "name email role")
+      .populate({
+        path: "statusHistory.supervisorDetails.supervisorId",
+        select: "name email phone", // optional, select desired fields
+      })
+      .populate({
+        path: "statusHistory.resolution.resolvedBy",
+        select: "name phone email", // fields from User model
+      })
+
+      .populate("siteId", "siteName")
+      .populate("projectId", "projectName")
+      .populate("unitId", "unitType unitNumber")
+      .sort({ createdAt: -1 });
+
+    const total = await Complaint.countDocuments(match);
+
+    if (isPagination === "true") {
+      query = query.skip((page - 1) * limit).limit(parseInt(limit));
+    }
+
+    const complaints = await query;
+
+    if (!complaints.length)
+      return sendSuccess(
+        res,
+        "No complaints found for this user",
+        complaints,
+        404
+      );
+
+    return sendSuccess(res, "Complaints fetched successfully", {
+      complaints,
+      totalComplaints: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+    });
   } catch (error) {
+    console.error("Get Complaints Error:", error);
     return sendError(res, "Failed to fetch complaints", 500, error.message);
   }
 };
