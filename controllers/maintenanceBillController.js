@@ -3,6 +3,7 @@ import MaintenanceBill from "../models/MaintenanceBill.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import { generateMaintenanceBillCore } from "../services/maintenanceBillService.js";
+import mongoose from "mongoose";
 
 /**
  * 🧾 Generate or Overwrite Maintenance Bill (Admin)
@@ -42,29 +43,62 @@ export const getAllMaintenanceBills = async (req, res) => {
 
     const filters = {};
 
-    // 🔹 Base filters
-    if (siteId) filters.siteId = siteId;
-    if (unitId) filters.unitId = unitId;
-    if (landlordId) filters.landlordId = landlordId;
+    // ✅ Convert string IDs to ObjectId if provided
+    if (siteId) filters.siteId = new mongoose.Types.ObjectId(siteId);
+    if (unitId) filters.unitId = new mongoose.Types.ObjectId(unitId);
+    if (landlordId)
+      filters.landlordId = new mongoose.Types.ObjectId(landlordId);
     if (status) filters.status = status;
 
-    // 🔹 Date filter (based on fromDate / toDate)
-    if (fromDate || toDate) {
-      filters.generatedOn = {};
-      if (fromDate) filters.generatedOn.$gte = new Date(fromDate);
-      if (toDate) filters.generatedOn.$lte = new Date(toDate);
+    // ✅ Date handling: make fromDate start-of-day and toDate end-of-day
+    let from = null;
+    let to = null;
+    if (fromDate) {
+      from = new Date(fromDate);
+      if (isNaN(from.getTime())) {
+        return sendError(
+          res,
+          "Invalid fromDate format. Use YYYY-MM-DD or ISO string."
+        );
+      }
+      from.setHours(0, 0, 0, 0);
+    }
+    if (toDate) {
+      to = new Date(toDate);
+      if (isNaN(to.getTime())) {
+        return sendError(
+          res,
+          "Invalid toDate format. Use YYYY-MM-DD or ISO string."
+        );
+      }
+      to.setHours(23, 59, 59, 999);
     }
 
-    // 🔹 Search (case-insensitive)
-    const searchRegex = new RegExp(search, "i");
+    // If either provided, build generatedOn filter
+    if (from || to) {
+      filters.generatedOn = {};
+      if (from) filters.generatedOn.$gte = from;
+      if (to) filters.generatedOn.$lte = to;
+    }
 
-    // 🔹 Sort setup
+    const searchRegex = new RegExp(search, "i");
     const sortOrder = order === "asc" ? 1 : -1;
     const sortOptions = { [sortBy]: sortOrder };
 
-    // 🔹 Mongo aggregation (handles populate + search efficiently)
     const pipeline = [
+      // If generatedOn in DB is stored as a string (ISO), you can convert it to Date:
+      // Uncomment the next stage if you store generatedOn as string. Otherwise leave commented.
+      // {
+      //   $addFields: {
+      //     generatedOnAsDate: { $toDate: "$generatedOn" } // requires MongoDB 4.0+ and valid ISO strings
+      //   }
+      // },
+      // { $match: filters } // If you used $addFields, use generatedOnAsDate in filters instead
+
+      // If generatedOn is a Date in DB, simple $match works:
       { $match: filters },
+
+      // lookups
       {
         $lookup: {
           from: "sites",
@@ -92,36 +126,54 @@ export const getAllMaintenanceBills = async (req, res) => {
         },
       },
       { $unwind: { path: "$landlord", preserveNullAndEmptyArrays: true } },
-      {
+    ];
+
+    // search after lookups (only when provided)
+    if (search && search.trim() !== "") {
+      pipeline.push({
         $match: {
           $or: [
-            { "site.name": { $regex: searchRegex } },
-            { "unit.name": { $regex: searchRegex } },
+            { "site.siteName": { $regex: searchRegex } },
+            { "unit.unitNumber": { $regex: searchRegex } },
             { "landlord.name": { $regex: searchRegex } },
+            { billNumber: { $regex: searchRegex } },
             { status: { $regex: searchRegex } },
           ],
         },
-      },
-      { $sort: sortOptions },
-    ];
+      });
+    }
 
-    // 🔹 Pagination logic
+    pipeline.push({ $sort: sortOptions });
+
     if (isPagination === "true") {
       const skip = (Number(page) - 1) * Number(limit);
       pipeline.push({ $skip: skip }, { $limit: Number(limit) });
     }
 
-    // 🔹 Execute pipeline
+    // Execute aggregation
     const data = await MaintenanceBill.aggregate(pipeline);
 
-    // 🔹 Count total matching docs (without pagination)
-    const total = await MaintenanceBill.countDocuments(filters);
+    // Count total: if search present we must count using aggregation so joined fields included
+    let total = 0;
+    if (search && search.trim() !== "") {
+      // reuse pipeline but only up to match & count (remove pagination & sort)
+      const countPipeline = pipeline.filter((stage) => {
+        // remove $sort, $skip, $limit
+        return !("$sort" in stage || "$skip" in stage || "$limit" in stage);
+      });
+      countPipeline.push({ $count: "count" });
+      const countResult = await MaintenanceBill.aggregate(countPipeline);
+      total = countResult[0]?.count || 0;
+    } else {
+      // no search — simple count with filters is enough
+      total = await MaintenanceBill.countDocuments(filters);
+    }
 
     return sendSuccess(res, "Maintenance bills fetched successfully", {
+      data,
       total,
       currentPage: Number(page),
       totalPages: isPagination === "true" ? Math.ceil(total / limit) : 1,
-      data,
     });
   } catch (error) {
     console.error("Get All Maintenance Bills Error:", error);
