@@ -2,6 +2,7 @@ import express from "express";
 import {
   generateMaintenanceBill,
   getAllMaintenanceBills,
+  getMaintenanceBillsByLandlord,
   updateMaintenanceBill,
 } from "../../controllers/maintenanceBillController.js";
 
@@ -14,5 +15,7 @@ router.post("/generate", generateMaintenanceBill);
 router.get("/", getAllMaintenanceBills);
 
 router.put("/:billId", updateMaintenanceBill);
+
+router.get("/landlord/:id", getMaintenanceBillsByLandlord);
 
 export default router;

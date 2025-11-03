@@ -134,8 +134,6 @@ export const updateMaintenanceBill = async (req, res) => {
     const { billId } = req.params;
     const updateFields = req.body;
 
-    
-
     // 🔹 Validate billId
     if (!billId) {
       return sendError(res, "Missing required parameter: billId");
@@ -167,5 +165,37 @@ export const updateMaintenanceBill = async (req, res) => {
   } catch (error) {
     console.error("Update Maintenance Bill Error:", error);
     return sendError(res, error.message);
+  }
+};
+
+export const getMaintenanceBillsByLandlord = async (req, res) => {
+  try {
+    const landlordId = req.params.id;
+    const { search, fromDate, toDate, page = 1, limit = 10 } = req.query;
+
+    console.log("Landlord ID:", landlordId);
+    console.log("Query Params:", req.query);
+
+    const filters = { landlordId };
+    console.log("Filters:", filters);
+
+    if (search)
+      filters.$or = [
+        { billTitle: { $regex: search, $options: "i" } },
+        { projectName: { $regex: search, $options: "i" } },
+      ];
+
+    if (fromDate && toDate) {
+      filters.createdAt = { $gte: new Date(fromDate), $lte: new Date(toDate) };
+    }
+
+    const bills = await MaintenanceBill.find(filters)
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    res.status(200).json({ success: true, count: bills.length, data: bills });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
