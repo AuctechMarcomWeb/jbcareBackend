@@ -162,9 +162,15 @@ export const getUserById = async (req, res) => {
     if (user.referenceId) {
       let refDoc = null;
       if (user.role === "landlord") {
-        refDoc = await Landlord.findById(user.referenceId);
+        refDoc = await Landlord.findById(user.referenceId)
+          .populate("siteId") // populate site info
+          .populate("projectId") // populate project info
+          .populate("unitIds");
       } else if (user.role === "tenant") {
-        refDoc = await Tenant.findById(user.referenceId);
+        refDoc = await Tenant.findById(user.referenceId)
+          .populate("siteId")
+          .populate("projectId")
+          .populate("unitId");
       }
       user = user.toObject();
       user.referenceId = refDoc; // attach populated document
@@ -268,3 +274,36 @@ export const deleteUser = async (req, res) => {
       .json({ message: "Error deleting user", error: err.message });
   }
 };
+
+/**
+ * 🔑 Change Password (for logged-in users)
+ */
+// export const changePassword = async (req, res) => {
+//   try {
+//     const { userId, currentPassword, newPassword } = req.body;
+
+//     if (!userId || !currentPassword || !newPassword)
+//       return sendError(
+//         res,
+//         "All fields (userId, currentPassword, newPassword) are required",
+//         400
+//       );
+
+//     const user = await User.findById(userId);
+//     if (!user) return sendError(res, "User not found", 404);
+
+//     // ✅ Verify old password
+//     const isMatch = await bcrypt.compare(currentPassword, user.password);
+//     if (!isMatch) return sendError(res, "Current password is incorrect", 400);
+
+//     // ✅ Hash new password
+//     const salt = await bcrypt.genSalt(10);
+//     user.password = await bcrypt.hash(newPassword, salt);
+//     await user.save();
+
+//     return sendSuccess(res, "Password changed successfully", null, 200);
+//   } catch (error) {
+//     console.error("Change Password Error:", error);
+//     return sendError(res, "Failed to change password", 500, error.message);
+//   }
+// };
