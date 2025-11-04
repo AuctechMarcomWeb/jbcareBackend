@@ -4,6 +4,7 @@ import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import { generateMaintenanceBillCore } from "../services/maintenanceBillService.js";
 import mongoose from "mongoose";
+import User from "../models/User.modal.js";
 
 /**
  * 🧾 Generate or Overwrite Maintenance Bill (Admin)
@@ -21,6 +22,142 @@ export const generateMaintenanceBill = async (req, res) => {
     return sendSuccess(res, result.message, result.data);
   } catch (error) {
     return sendError(res, error.message);
+  }
+};
+
+export const getTodayMaintenanceForAll = async (req, res) => {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+    const currentDay = now.getDate();
+
+    const landlords = await User.find({ role: "landlord" }).select(
+      "_id name email joiningDate siteId unitId"
+    );
+
+    if (!landlords.length) return sendError(res, "No landlords found", 404);
+
+    const results = [];
+
+    for (const landlord of landlords) {
+      const {
+        _id: landlordId,
+        name,
+        email,
+        siteId,
+        unitId,
+        joiningDate,
+        createdAt,
+      } = landlord;
+
+      if (!siteId || !unitId) continue;
+
+      // ✅ STEP 1: pick whichever date exists
+      const rawJoinDate = joiningDate || createdAt;
+
+      // ✅ STEP 2: validate it before using
+      if (!rawJoinDate || isNaN(new Date(rawJoinDate))) {
+        console.warn(
+          `⚠️ Skipping landlord ${name} (${landlordId}) - Invalid join date:`,
+          rawJoinDate
+        );
+        continue; // skip to avoid invalid date crash
+      }
+
+      const joinDate = new Date(rawJoinDate);
+
+      // 1️⃣ Get latest active charge
+      const charge = await MaintainCharges.findOne({
+        siteId,
+        unitId,
+        isActive: true,
+      }).sort({ effectiveFrom: -1 });
+
+      if (!charge) continue;
+
+      // 2️⃣ Monthly amount calc
+      let maintenanceAmount = 0;
+      if (charge.rateType === "per_sqft") {
+        const unit = await Unit.findById(unitId);
+        if (!unit?.areaSqFt) continue;
+        maintenanceAmount = charge.rateValue * unit.areaSqFt;
+      } else {
+        maintenanceAmount = charge.rateValue;
+      }
+
+      const gstAmount = (maintenanceAmount * charge.gstPercent) / 100;
+      const totalMonthlyCharge = maintenanceAmount + gstAmount;
+
+      // 3️⃣ Daily calculation
+      const dailyCharge = totalMonthlyCharge / totalDaysInMonth;
+
+      const startOfMonth = new Date(year, month, 1);
+      const effectiveStartDate =
+        joinDate > startOfMonth ? joinDate : startOfMonth;
+
+      let eligibleDays = 0;
+      if (now >= effectiveStartDate) {
+        const daysSinceJoin = Math.floor(
+          (now - effectiveStartDate) / (1000 * 60 * 60 * 24)
+        );
+        eligibleDays = Math.min(daysSinceJoin + 1, totalDaysInMonth);
+      }
+
+      const accumulatedCharge = dailyCharge * eligibleDays;
+
+      // 4️⃣ Save / Update maintenance bill in DB (upsert)
+      const fromDate = startOfMonth;
+      const toDate = new Date(year, month + 1, 0, 23, 59, 59);
+
+      const updatedBill = await MaintenanceBill.findOneAndUpdate(
+        { landlordId, siteId, unitId, fromDate, toDate },
+        {
+          $set: {
+            maintenanceAmount: Number(maintenanceAmount.toFixed(2)),
+            gstAmount: Number(gstAmount.toFixed(2)),
+            totalAmount: Number(totalMonthlyCharge.toFixed(2)),
+            billingAmount: Number(accumulatedCharge.toFixed(2)),
+            generatedOn: now,
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+      results.push({
+        landlordId,
+        name,
+        email,
+        siteId,
+        unitId,
+        month: `${year}-${String(month + 1).padStart(2, "0")}`,
+        joiningDate: joinDate.toISOString().split("T")[0],
+        totalMonthlyCharge: parseFloat(totalMonthlyCharge.toFixed(2)),
+        dailyCharge: parseFloat(dailyCharge.toFixed(2)),
+        eligibleDays,
+        accumulatedCharge: parseFloat(accumulatedCharge.toFixed(2)),
+        asOfDate: now.toISOString().split("T")[0],
+        dbRef: updatedBill._id,
+      });
+    }
+
+    results.sort((a, b) => a.siteId?.localeCompare(b.siteId || ""));
+
+    return sendSuccess(
+      res,
+      "Today's maintenance summary calculated and saved successfully",
+      results,
+      200
+    );
+  } catch (error) {
+    console.error("Get Today Maintenance (All) Error:", error);
+    return sendError(
+      res,
+      "Failed to calculate/save today's maintenance for all landlords",
+      500,
+      error.message
+    );
   }
 };
 
