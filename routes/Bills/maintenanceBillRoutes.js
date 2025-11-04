@@ -3,6 +3,7 @@ import {
   generateMaintenanceBill,
   getAllMaintenanceBills,
   getMaintenanceBillsByLandlord,
+  getTodayMaintenanceForAll,
   updateMaintenanceBill,
 } from "../../controllers/maintenanceBillController.js";
 
@@ -13,6 +14,7 @@ router.post("/generate", generateMaintenanceBill);
 
 // 📋 Get all bills (with filters)
 router.get("/", getAllMaintenanceBills);
+router.get("/byDay", getTodayMaintenanceForAll);
 
 router.put("/:billId", updateMaintenanceBill);
 

@@ -10,6 +10,7 @@ const maintenanceBillSchema  = new mongoose.Schema(
   maintenanceAmount: Number,
   gstAmount: Number,
   totalAmount: Number,
+  billingAmount:Number,
   status: { type: String, enum: ["Unpaid", "Paid"], default: "Unpaid" },
   generatedOn: { type: Date, default: Date.now },
   }
