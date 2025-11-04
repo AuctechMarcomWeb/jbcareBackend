@@ -223,37 +223,42 @@ export const getUserByToken = async (req, res) => {
   }
 };
 
-// PUT /api/user/:id - update user (admin/supervisor or owner)
 export const updateUser = async (req, res) => {
   try {
-    const { id } = req.params;
-    if (
-      req.user.role !== "admin" &&
-      req.user.role !== "supervisor" &&
-      req.user._id.toString() !== id
-    ) {
-      return res
-        .status(403)
-        .json({ message: "Not authorized to update this user" });
-    }
-    const updates = { ...req.body };
+    const { id } = req.params; // user id from URL
+    const { role, ...updates } = req.body; // extract role separately
 
-    // if password provided, hash it
-    if (updates.password) {
-      const salt = await bcrypt.genSalt(10);
-      updates.password = await bcrypt.hash(updates.password, salt);
+    // ✅ Find user
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const user = await User.findByIdAndUpdate(id, updates, {
+    // ✅ If role is being updated, check if requester is admin
+    if (role) {
+      if (req.body.requesterRole === "admin") {
+        updates.role = role; // only admin can update role
+      } else {
+        console.warn(`Non-admin tried to update role for user ${id}`);
+      }
+    }
+
+    // ✅ Update user
+    const updatedUser = await User.findByIdAndUpdate(id, updates, {
       new: true,
       runValidators: true,
     }).select("-password");
-    if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({ message: "User updated", user });
+
+    return res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser,
+    });
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error updating user", error: err.message });
+    console.error("Error updating user:", err);
+    return res.status(500).json({
+      message: "Error updating user",
+      error: err.message,
+    });
   }
 };
 
