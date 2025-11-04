@@ -20,12 +20,12 @@ export const addLandlord = async (req, res) => {
     } = req.body;
 
     // 🧩 Validation
-    if (!name || !phone || !siteId || !projectId || unitIds.length === 0) {
+    if (!name || !phone || !siteId || unitIds.length === 0) {
       const missingFields = [];
       if (!name) missingFields.push("name");
       if (!phone) missingFields.push("phone");
       if (!siteId) missingFields.push("siteId");
-      if (!projectId) missingFields.push("projectId");
+      // if (!projectId) missingFields.push("projectId");
       if (unitIds.length === 0) missingFields.push("unitIds");
 
       return sendError(
@@ -49,7 +49,7 @@ export const addLandlord = async (req, res) => {
       address,
       profilePic,
       siteId,
-      projectId,
+      // projectId,
       unitIds,
       isActive: true,
       createdBy: req.user?._id || null,
@@ -120,7 +120,7 @@ export const addLandlord = async (req, res) => {
       role: "landlord",
       referenceId: landlord?._id,
       siteId, // ✅ from req.body
-      projectId, // ✅ from req.body
+      // projectId, // ✅ from req.body
       unitId: unitIds[0] || null, // ✅ first unit
     });
 
@@ -190,7 +190,7 @@ export const getLandlords = async (req, res) => {
     const sortOrder = order === "asc" ? 1 : -1;
 
     const landlords = await Landlord.find(query)
-      .populate("siteId projectId unitIds")
+      .populate("siteId unitIds")
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .sort({ createdAt: sortOrder });
@@ -228,7 +228,7 @@ export const getLandlordById = async (req, res) => {
   }
   try {
     const landlord = await Landlord.findById(req.params.id).populate(
-      "siteId projectId unitIds"
+      "siteId unitIds"
     );
     if (!landlord) return sendError(res, "Landlord not found.", 404);
 

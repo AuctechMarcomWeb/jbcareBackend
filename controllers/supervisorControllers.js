@@ -39,7 +39,7 @@ export const createSupervisor = async (req, res) => {
     if (email && typeof email !== "string")
       return sendError(res, "Email must be a string", 400);
     if (!siteId) return sendError(res, "siteId is required", 400);
-    if (!projectId) return sendError(res, "projectId is required", 400);
+    // if (!projectId) return sendError(res, "projectId is required", 400);
     if (!unitId) return sendError(res, "unitId is required", 400);
     if (
       !verificationDocuments ||
@@ -60,7 +60,7 @@ export const createSupervisor = async (req, res) => {
       email,
       verificationDocuments,
       siteId,
-      projectId,
+      // projectId,
       unitId, // single unit
       isActive,
     });
@@ -75,7 +75,7 @@ export const createSupervisor = async (req, res) => {
       referenceId: supervisor._id,
       password: "ABC123",
       siteId,
-      projectId,
+      // projectId,
       unitId, // single unit
     };
 
@@ -196,7 +196,7 @@ export const getSupervisorById = async (req, res) => {
   try {
     const supervisor = await Supervisor.findById(req.params.id)
       .populate("siteId") // populate specific fields
-      .populate("projectId")
+      // .populate("projectId")
       .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
     return sendSuccess(res, "Fetched the supervisor by id", supervisor, 200);
@@ -222,7 +222,7 @@ export const updateSupervisor = async (req, res) => {
       }
     )
       .populate("siteId") // populate specific fields
-      .populate("projectId")
+      // .populate("projectId")
       .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
     return sendSuccess(res, "Supervisor updated successfully", supervisor, 200);

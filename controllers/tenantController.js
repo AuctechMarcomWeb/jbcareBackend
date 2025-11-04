@@ -28,7 +28,7 @@ export const addTenant = async (req, res) => {
     if (!name) missingFields.push("name");
     if (!phone) missingFields.push("phone");
     if (!siteId) missingFields.push("siteId");
-    if (!projectId) missingFields.push("projectId");
+    // if (!projectId) missingFields.push("projectId");
     if (!unitId) missingFields.push("unitId");
     if (!landlordId) missingFields.push("landlordId");
     if (!addedBy) missingFields.push("addedBy");
@@ -75,7 +75,7 @@ export const addTenant = async (req, res) => {
       address,
       profilePic,
       siteId,
-      projectId,
+      // projectId,
       unitId,
       landlordId,
       addedBy,
@@ -102,7 +102,7 @@ export const addTenant = async (req, res) => {
       role: "tenant",
       referenceId: tenant?._id, // optional to link
       siteId, // ✅ added
-      projectId, // ✅ added
+      // projectId, // ✅ added
       unitId, // ✅ added
     });
     // 🔹 Save userId back to tenant
@@ -169,7 +169,7 @@ export const getTenants = async (req, res) => {
     const sortOrder = order === "asc" ? 1 : -1;
 
     const tenants = await Tenant.find(query)
-      .populate("siteId projectId unitId landlordId")
+      .populate("siteId  unitId landlordId")
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .sort({ createdAt: sortOrder });
@@ -200,7 +200,7 @@ export const getTenantById = async (req, res) => {
   }
   try {
     const tenant = await Tenant.findById(req.params.id).populate(
-      "siteId projectId unitId landlordId"
+      "siteId  unitId landlordId"
     );
     if (!tenant)
       return res

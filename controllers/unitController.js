@@ -29,7 +29,7 @@ export const createUnit = async (req, res) => {
       );
     }
     if (!siteId) return sendError(res, "siteId is required", 400);
-    if (!projectId) return sendError(res, "projectId is required", 400);
+    // if (!projectId) return sendError(res, "projectId is required", 400);
     if (!unitTypeId) return sendError(res, "unitTypeId is required", 400);
 
     // 🔍 Check duplicate unitNumber
@@ -111,7 +111,7 @@ export const getAllUnits = async (req, res) => {
     // 🏗️ Query setup
     let query = Unit.find(match)
       .populate("siteId", "siteName")
-      .populate("projectId", "projectName")
+      // .populate("projectId", "projectName")
       .populate("unitTypeId", "title")
       .populate("landlordId", "name phone email")
       .populate({

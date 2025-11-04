@@ -37,7 +37,7 @@ export const createComplaint = async (req, res) => {
       );
 
     // 🔹 Validate ObjectIds
-    const objectIds = { siteId, projectId, unitId, userId };
+    const objectIds = { siteId, unitId, userId };
     for (const [key, value] of Object.entries(objectIds)) {
       if (value && !mongoose.Types.ObjectId.isValid(value)) {
         return sendError(res, `Invalid ${key}`, 400);
@@ -52,24 +52,25 @@ export const createComplaint = async (req, res) => {
     const site = await Site.findById(siteId);
     if (!site) return sendError(res, "Site not found", 404);
 
-    const project = await Project.findById(projectId);
-    if (!project) return sendError(res, "Project not found", 404);
+    // const project = await Project.findById(projectId);
+    // if (!project) return sendError(res, "Project not found", 404);
 
     const unit = await Unit.findById(unitId);
     if (!unit) return sendError(res, "Unit not found", 404);
 
     // 🔹 Hierarchy validation
-    if (String(project.siteId) !== String(site._id)) {
-      return sendError(
-        res,
-        "Project does not belong to the specified Site",
-        400
-      );
-    }
+    // if (String(project.siteId) !== String(site._id)) {
+    //   return sendError(
+    //     res,
+    //     "Project does not belong to the specified Site",
+    //     400
+    //   );
+    // }
 
     if (
-      String(unit.siteId) !== String(site._id) ||
-      String(unit.projectId) !== String(project._id)
+      String(unit.siteId) !== String(site._id) 
+      // ||
+      // String(unit.projectId) !== String(project._id)
     ) {
       return sendError(
         res,
@@ -81,7 +82,7 @@ export const createComplaint = async (req, res) => {
     // 🔹 Create complaint
     const complaint = await Complaint.create({
       siteId,
-      projectId,
+      // projectId,
       unitId,
       userId,
       addedBy,
