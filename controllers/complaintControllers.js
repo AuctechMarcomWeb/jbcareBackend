@@ -218,12 +218,14 @@ export const updateComplaint = async (req, res) => {
        * ✅ CLOSURE STAGE (Customer verification)
        */
       case "verifyResolution":
-        if (!closedBy)
-          return sendError(
-            res,
-            "Customer (closedBy) required for closure",
-            400
-          );
+        if (userRole !== "Admin") {
+          if (!closedBy)
+            return sendError(
+              res,
+              "Customer (closedBy) required for closure",
+              400
+            );
+        }
         newStatus = "Closed";
         newHistoryEntry.status = "Closed";
         newHistoryEntry.closedBy = closedBy;
