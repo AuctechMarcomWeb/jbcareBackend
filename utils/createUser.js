@@ -9,7 +9,7 @@ export const createUser = async ({
   role,
   referenceId,
   siteId,
-  projectId,
+  // projectId,
   unitId,
 }) => {
   // Check duplicate email/phone
@@ -24,7 +24,7 @@ export const createUser = async ({
     role,
     referenceId,
     siteId,
-    projectId,
+    // projectId,
     unitId,
   });
 

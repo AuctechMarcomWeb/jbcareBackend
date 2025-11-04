@@ -91,7 +91,7 @@ const StatusHistorySchema = new Schema(
 const ComplaintSchema = new Schema(
   {
     siteId: { type: Schema.Types.ObjectId, ref: "Site", required: true },
-    projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true },
+    // projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true },
     unitId: { type: Schema.Types.ObjectId, ref: "Unit", required: true },
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     addedBy: {
