@@ -156,22 +156,20 @@ export const getUserById = async (req, res) => {
     //     .json({ message: "Not authorized to view this user" });
     // }
 
-    let user = await User.findById(id).select("-password");
+    let user = await User.findById(id)
+      .select("-password")
+      .populate("siteId")
+      .populate("projectId")
+      .populate("unitId", "_id unitNumber block floor areaSqFt");
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // Populate referenceId dynamically based on role
     if (user.referenceId) {
       let refDoc = null;
       if (user.role === "landlord") {
-        refDoc = await Landlord.findById(user.referenceId)
-          .populate("siteId") // populate site info
-          .populate("projectId") // populate project info
-          .populate("unitIds");
+        refDoc = await Landlord.findById(user.referenceId);
       } else if (user.role === "tenant") {
-        refDoc = await Tenant.findById(user.referenceId)
-          .populate("siteId")
-          .populate("projectId")
-          .populate("unitId");
+        refDoc = await Tenant.findById(user.referenceId);
       }
       user = user.toObject();
       user.referenceId = refDoc; // attach populated document
