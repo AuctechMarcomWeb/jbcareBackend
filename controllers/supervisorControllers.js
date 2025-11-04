@@ -153,9 +153,9 @@ export const getSupervisors = async (req, res) => {
       total = await Supervisor.countDocuments(filters);
 
       supervisors = await Supervisor.find(filters)
-        .populate("siteId", "name") // only pick useful fields
-        .populate("projectId", "name")
-        .populate("unitId", "name")
+        .populate("siteId", "siteName") // only pick useful fields
+        .populate("projectId", "projectName")
+        .populate("unitId", "unitNumber")
         .sort(sortConfig)
         .skip(skip)
         .limit(parseInt(limit));
