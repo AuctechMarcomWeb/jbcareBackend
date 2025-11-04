@@ -33,6 +33,9 @@ const userSchema = new mongoose.Schema(
       enum: ["admin", "user", "supervisor", "landlord", "tenant"],
       default: "user",
     },
+    profilePic:{
+      type:String
+    },
     password: {
       type: String,
       required: [true, "Password is required"],
