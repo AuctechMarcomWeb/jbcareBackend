@@ -154,7 +154,7 @@ export const getSupervisors = async (req, res) => {
 
       supervisors = await Supervisor.find(filters)
         .populate("siteId", "siteName") // only pick useful fields
-        .populate("projectId", "projectName")
+        // .populate("projectId", "projectName")
         .populate("unitId", "unitNumber")
         .sort(sortConfig)
         .skip(skip)
@@ -169,7 +169,7 @@ export const getSupervisors = async (req, res) => {
     } else {
       supervisors = await Supervisor.find(filters)
         .populate("siteId", "name")
-        .populate("projectId", "name")
+        // .populate("projectId", "name")
         .populate("unitId", "name")
         .sort(sortConfig);
 
