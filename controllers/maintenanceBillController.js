@@ -362,54 +362,111 @@ export const getMaintenanceBillsByLandlord = async (req, res) => {
     const { id: landlordId, unitId } = req.params;
     const { search, fromDate, toDate, page = 1, limit = 10 } = req.query;
 
-    console.log("Landlord ID:", landlordId);
-    console.log("Unit ID:", unitId);
-    console.log("Query Params:", req.query);
+    console.log("🟢 Incoming Params =>", { landlordId, unitId });
+    console.log("🟢 Query Params =>", {
+      search,
+      fromDate,
+      toDate,
+      page,
+      limit,
+    });
 
-    // ✅ Base filters
-    const filters = { landlordId };
+    // --------------------------------------------
+    // 🧩 1️⃣ Build Filters
+    // --------------------------------------------
+    const filters = {};
 
-    // ✅ Add unitId only if provided
-    if (unitId) {
-      filters.unitId = unitId;
+    // landlordId (required)
+    if (landlordId && mongoose.Types.ObjectId.isValid(landlordId)) {
+      filters.landlordId = new mongoose.Types.ObjectId(landlordId);
+    } else {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid landlordId" });
     }
 
-    // ✅ Add search condition
-    if (search) {
+    // unitId (optional)
+    if (unitId && mongoose.Types.ObjectId.isValid(unitId)) {
+      filters.unitId = new mongoose.Types.ObjectId(unitId);
+    }
+
+    // search filter (billTitle, projectName)
+    if (search && search.trim() !== "") {
       filters.$or = [
-        { billTitle: { $regex: search, $options: "i" } },
-        { projectName: { $regex: search, $options: "i" } },
+        { billTitle: { $regex: search.trim(), $options: "i" } },
+        { projectName: { $regex: search.trim(), $options: "i" } },
       ];
     }
 
-    // ✅ Add date range filter
-    if (fromDate && toDate) {
-      filters.createdAt = {
-        $gte: new Date(fromDate),
-        $lte: new Date(toDate),
-      };
+    // --------------------------------------------
+    // 🗓️ 2️⃣ Date Filters (using generatedOn instead of createdAt)
+    // --------------------------------------------
+    if (fromDate || toDate) {
+      const generatedOnFilter = {};
+
+      if (fromDate) {
+        const parsedFrom = new Date(fromDate);
+        if (!isNaN(parsedFrom)) {
+          parsedFrom.setHours(0, 0, 0, 0);
+          generatedOnFilter.$gte = parsedFrom;
+        }
+      }
+
+      if (toDate) {
+        const parsedTo = new Date(toDate);
+        if (!isNaN(parsedTo)) {
+          parsedTo.setHours(23, 59, 59, 999);
+          generatedOnFilter.$lte = parsedTo;
+        }
+      }
+
+      if (Object.keys(generatedOnFilter).length > 0) {
+        filters.generatedOn = generatedOnFilter;
+      }
     }
 
-    console.log("Final Filters:", filters);
+    console.log(
+      "🧩 Final MongoDB Filters =>",
+      JSON.stringify(filters, null, 2)
+    );
 
-    const bills = await MaintenanceBill.find(filters)
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
-      .populate("siteId")
-      .populate("unitId")
-      .populate("landlordId");
+    // --------------------------------------------
+    // 📄 3️⃣ Pagination + Query
+    // --------------------------------------------
+    const p = Math.max(1, Number(page));
+    const lim = Math.max(1, Number(limit));
+    const skip = (p - 1) * lim;
 
-    res.status(200).json({
+    const [bills, total] = await Promise.all([
+      MaintenanceBill.find(filters)
+        .populate("siteId")
+        .populate("unitId")
+        .populate("landlordId")
+        .sort({ generatedOn: -1 })
+        .skip(skip)
+        .limit(lim),
+      MaintenanceBill.countDocuments(filters),
+    ]);
+
+    // --------------------------------------------
+    // ✅ 4️⃣ Response
+    // --------------------------------------------
+    return res.status(200).json({
       success: true,
+      message: "Maintenance bills fetched successfully",
+      total,
       count: bills.length,
+      page: p,
+      limit: lim,
+      filters,
       data: bills,
     });
-  } catch (error) {
-    console.error("Error in getMaintenanceBillsByLandlord:", error);
-    res.status(500).json({
+  } catch (err) {
+    console.error("❌ getMaintenanceBillsByLandlord Error:", err);
+    return res.status(500).json({
       success: false,
       message: "Server Error",
-      error: error.message,
+      error: err.message,
     });
   }
 };
