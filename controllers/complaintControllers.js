@@ -289,7 +289,7 @@ export const getAllComplaints = async (req, res) => {
 
     if (status) match.status = status;
     if (siteId) match.siteId = siteId;
-    if (projectId) match.projectId = projectId;
+    // if (projectId) match.projectId = projectId;
     if (addedBy) match.addedBy = addedBy;
 
     if (search?.trim()) {
@@ -313,7 +313,7 @@ export const getAllComplaints = async (req, res) => {
     let query = Complaint.find(match)
       .populate("userId", "name email role")
       .populate("siteId", "siteName")
-      .populate("projectId", "projectName")
+      // .populate("projectId", "projectName")
       .populate("unitId", "unitType unitNumber")
       .sort({ createdAt: -1 });
 
@@ -408,7 +408,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
         })
 
         .populate("siteId", "siteName")
-        .populate("projectId", "projectName")
+        // .populate("projectId", "projectName")
         .populate("unitId", "unitType unitNumber");
 
       if (!complaint) return sendError(res, "Complaint not found", 404);
@@ -452,7 +452,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
       })
 
       .populate("siteId", "siteName")
-      .populate("projectId", "projectName")
+      // .populate("projectId", "projectName")
       .populate("unitId", "unitType unitNumber")
       .sort({ createdAt: -1 });
 
