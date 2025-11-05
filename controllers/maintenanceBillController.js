@@ -359,32 +359,57 @@ export const updateMaintenanceBill = async (req, res) => {
 
 export const getMaintenanceBillsByLandlord = async (req, res) => {
   try {
-    const landlordId = req.params.id;
+    const { id: landlordId, unitId } = req.params;
     const { search, fromDate, toDate, page = 1, limit = 10 } = req.query;
 
     console.log("Landlord ID:", landlordId);
+    console.log("Unit ID:", unitId);
     console.log("Query Params:", req.query);
 
+    // ✅ Base filters
     const filters = { landlordId };
-    console.log("Filters:", filters);
 
-    if (search)
+    // ✅ Add unitId only if provided
+    if (unitId) {
+      filters.unitId = unitId;
+    }
+
+    // ✅ Add search condition
+    if (search) {
       filters.$or = [
         { billTitle: { $regex: search, $options: "i" } },
         { projectName: { $regex: search, $options: "i" } },
       ];
-
-    if (fromDate && toDate) {
-      filters.createdAt = { $gte: new Date(fromDate), $lte: new Date(toDate) };
     }
+
+    // ✅ Add date range filter
+    if (fromDate && toDate) {
+      filters.createdAt = {
+        $gte: new Date(fromDate),
+        $lte: new Date(toDate),
+      };
+    }
+
+    console.log("Final Filters:", filters);
 
     const bills = await MaintenanceBill.find(filters)
       .skip((page - 1) * limit)
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .populate("siteId")
+      .populate("unitId")
+      .populate("landlordId");
 
-    res.status(200).json({ success: true, count: bills.length, data: bills });
+    res.status(200).json({
+      success: true,
+      count: bills.length,
+      data: bills,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    console.error("Error in getMaintenanceBillsByLandlord:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
   }
 };
