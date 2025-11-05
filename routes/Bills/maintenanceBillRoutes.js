@@ -18,6 +18,6 @@ router.get("/byDay", getTodayMaintenanceForAll);
 
 router.put("/:billId", updateMaintenanceBill);
 
-router.get("/landlord/:id", getMaintenanceBillsByLandlord);
+router.get("/landlord/:id/unit/:unitId", getMaintenanceBillsByLandlord);
 
 export default router;
