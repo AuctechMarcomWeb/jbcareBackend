@@ -1,4 +1,5 @@
 // controllers/unit.controller.js
+import mongoose from "mongoose";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
@@ -55,7 +56,6 @@ export const createUnit = async (req, res) => {
   }
 };
 
-// ✅ Get all Units with filters, search, pagination, and sort order
 export const getAllUnits = async (req, res) => {
   try {
     const {
@@ -63,14 +63,18 @@ export const getAllUnits = async (req, res) => {
       siteId,
       projectId,
       unitTypeId,
+      landlordId,
       status,
       fromDate,
       toDate,
-      order = "desc", // 🔹 Default sort order
+      order = "desc",
       isPagination = "true",
       page = 1,
       limit = 10,
     } = req.query;
+
+    console.log("All unit query", req.query);
+    
 
     const match = {};
 
@@ -94,6 +98,11 @@ export const getAllUnits = async (req, res) => {
     if (status !== undefined && status !== "null" && status !== "undefined")
       match.status = status === "true";
 
+    // 🆕 Proper landlordId filter
+    if (landlordId && mongoose.Types.ObjectId.isValid(landlordId)) {
+      match.landlordId = new mongoose.Types.ObjectId(landlordId);
+    }
+
     // 📅 Date range filter
     if (fromDate || toDate) {
       match.createdAt = {};
@@ -104,14 +113,12 @@ export const getAllUnits = async (req, res) => {
         match.createdAt.$lte = endOfDay;
       }
     }
+    console.log("Unit filters", match);
 
-    // 🧾 Sort order (latest first by default)
     const sortOrder = order === "asc" ? 1 : -1;
 
-    // 🏗️ Query setup
     let query = Unit.find(match)
       .populate("siteId", "siteName")
-      // .populate("projectId", "projectName")
       .populate("unitTypeId", "title")
       .populate("landlordId", "name phone email")
       .populate({
@@ -124,7 +131,6 @@ export const getAllUnits = async (req, res) => {
       })
       .sort({ createdAt: sortOrder });
 
-    // 📄 Pagination
     const total = await Unit.countDocuments(match);
     if (isPagination === "true") {
       query.skip((page - 1) * parseInt(limit)).limit(parseInt(limit));
@@ -132,7 +138,6 @@ export const getAllUnits = async (req, res) => {
 
     const units = await query;
 
-    // ✅ Response
     return sendSuccess(
       res,
       units.length ? "Units fetched successfully" : "No units found.",
