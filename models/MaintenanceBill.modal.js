@@ -13,6 +13,9 @@ const maintenanceBillSchema = new mongoose.Schema({
   lastUpdatedDate: { type: String },
   status: { type: String, enum: ["Unpaid", "Paid"], default: "Unpaid" },
   generatedOn: { type: Date, default: Date.now },
+  paymentStatus:{ type: String, enum: ["Pending", "Completed"], default: "Pending" },
+  paymentId: String,
+  paidAt: Date
 });
 
 maintenanceBillSchema.index({ siteId: 1, unitId: 1, landlordId: 1 });
