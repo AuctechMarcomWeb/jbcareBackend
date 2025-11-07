@@ -1,8 +1,7 @@
 import mongoose from "mongoose";
 
-const maintenanceBillSchema  = new mongoose.Schema(
-  {
-     landlordId: { type: mongoose.Schema.Types.ObjectId, ref: "Landlord" },
+const maintenanceBillSchema = new mongoose.Schema({
+  landlordId: { type: mongoose.Schema.Types.ObjectId, ref: "Landlord" },
   siteId: { type: mongoose.Schema.Types.ObjectId, ref: "Site" },
   unitId: { type: mongoose.Schema.Types.ObjectId, ref: "Unit" },
   fromDate: Date,
@@ -10,15 +9,15 @@ const maintenanceBillSchema  = new mongoose.Schema(
   maintenanceAmount: Number,
   gstAmount: Number,
   totalAmount: Number,
-  billingAmount:Number,
+  billingAmount: { type: Number, default: 0 },
+  lastUpdatedDate: { type: String },
   status: { type: String, enum: ["Unpaid", "Paid"], default: "Unpaid" },
   generatedOn: { type: Date, default: Date.now },
-  }
-);
+});
 
-maintenanceBillSchema .index({ siteId: 1, unitId: 1, landlordId:1});
+maintenanceBillSchema.index({ siteId: 1, unitId: 1, landlordId: 1 });
 
 const MaintenanceBill =
   mongoose.models.MaintenanceBill ||
-  mongoose.model("MaintenanceBill", maintenanceBillSchema );
+  mongoose.model("MaintenanceBill", maintenanceBillSchema);
 export default MaintenanceBill;

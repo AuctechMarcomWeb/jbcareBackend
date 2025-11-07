@@ -31,10 +31,11 @@ export const getTodayMaintenanceForAll = async (req, res) => {
     const year = now.getFullYear();
     const month = now.getMonth();
     const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
-    const currentDay = now.getDate();
+    const todayDateStr = now.toISOString().split("T")[0]; // yyyy-mm-dd
 
+    // 🔹 Fetch all landlords
     const landlords = await User.find({ role: "landlord" }).select(
-      "_id name email joiningDate siteId unitId"
+      "_id name email joiningDate siteId unitId createdAt"
     );
 
     if (!landlords.length) return sendError(res, "No landlords found", 404);
@@ -54,21 +55,19 @@ export const getTodayMaintenanceForAll = async (req, res) => {
 
       if (!siteId || !unitId) continue;
 
-      // ✅ STEP 1: pick whichever date exists
+      // ✅ Pick valid join date
       const rawJoinDate = joiningDate || createdAt;
-
-      // ✅ STEP 2: validate it before using
       if (!rawJoinDate || isNaN(new Date(rawJoinDate))) {
         console.warn(
           `⚠️ Skipping landlord ${name} (${landlordId}) - Invalid join date:`,
           rawJoinDate
         );
-        continue; // skip to avoid invalid date crash
+        continue;
       }
 
       const joinDate = new Date(rawJoinDate);
 
-      // 1️⃣ Get latest active charge
+      // 🔹 1️⃣ Fetch active maintenance charge
       const charge = await MaintainCharges.findOne({
         siteId,
         unitId,
@@ -77,7 +76,7 @@ export const getTodayMaintenanceForAll = async (req, res) => {
 
       if (!charge) continue;
 
-      // 2️⃣ Monthly amount calc
+      // 🔹 2️⃣ Calculate total monthly charge
       let maintenanceAmount = 0;
       if (charge.rateType === "per_sqft") {
         const unit = await Unit.findById(unitId);
@@ -89,42 +88,55 @@ export const getTodayMaintenanceForAll = async (req, res) => {
 
       const gstAmount = (maintenanceAmount * charge.gstPercent) / 100;
       const totalMonthlyCharge = maintenanceAmount + gstAmount;
-
-      // 3️⃣ Daily calculation
       const dailyCharge = totalMonthlyCharge / totalDaysInMonth;
 
-      const startOfMonth = new Date(year, month, 1);
-      const effectiveStartDate =
-        joinDate > startOfMonth ? joinDate : startOfMonth;
-
-      let eligibleDays = 0;
-      if (now >= effectiveStartDate) {
-        const daysSinceJoin = Math.floor(
-          (now - effectiveStartDate) / (1000 * 60 * 60 * 24)
-        );
-        eligibleDays = Math.min(daysSinceJoin + 1, totalDaysInMonth);
-      }
-
-      const accumulatedCharge = dailyCharge * eligibleDays;
-
-      // 4️⃣ Save / Update maintenance bill in DB (upsert)
-      const fromDate = startOfMonth;
+      // 🔹 3️⃣ Determine bill period
+      const fromDate = new Date(year, month, 1);
       const toDate = new Date(year, month + 1, 0, 23, 59, 59);
 
-      const updatedBill = await MaintenanceBill.findOneAndUpdate(
-        { landlordId, siteId, unitId, fromDate, toDate },
-        {
-          $set: {
-            maintenanceAmount: Number(maintenanceAmount.toFixed(2)),
-            gstAmount: Number(gstAmount.toFixed(2)),
-            totalAmount: Number(totalMonthlyCharge.toFixed(2)),
-            billingAmount: Number(accumulatedCharge.toFixed(2)),
-            generatedOn: now,
-          },
-        },
-        { upsert: true, new: true }
-      );
+      // 🔹 4️⃣ Fetch or create the monthly bill
+      let existingBill = await MaintenanceBill.findOne({
+        landlordId,
+        siteId,
+        unitId,
+        fromDate,
+        toDate,
+      });
 
+      // 🔹 Prevent double addition in same day
+      if (existingBill && existingBill.lastUpdatedDate === todayDateStr) {
+        console.log(`⏩ Already updated today for landlord: ${name}`);
+        continue;
+      }
+
+      // 🔹 If no bill exists yet → create new one
+      if (!existingBill) {
+        existingBill = new MaintenanceBill({
+          landlordId,
+          siteId,
+          unitId,
+          fromDate,
+          toDate,
+          maintenanceAmount: Number(maintenanceAmount.toFixed(2)),
+          gstAmount: Number(gstAmount.toFixed(2)),
+          totalAmount: Number(totalMonthlyCharge.toFixed(2)),
+          billingAmount: 0, // will start from zero
+          status: "Unpaid",
+          generatedOn: now,
+          lastUpdatedDate: todayDateStr,
+        });
+      }
+
+      // 🔹 Add today’s daily charge
+      existingBill.billingAmount = Number(
+        (existingBill.billingAmount + dailyCharge).toFixed(2)
+      );
+      existingBill.generatedOn = now;
+      existingBill.lastUpdatedDate = todayDateStr;
+
+      await existingBill.save();
+
+      // 🔹 Push result summary
       results.push({
         landlordId,
         name,
@@ -135,18 +147,21 @@ export const getTodayMaintenanceForAll = async (req, res) => {
         joiningDate: joinDate.toISOString().split("T")[0],
         totalMonthlyCharge: parseFloat(totalMonthlyCharge.toFixed(2)),
         dailyCharge: parseFloat(dailyCharge.toFixed(2)),
-        eligibleDays,
-        accumulatedCharge: parseFloat(accumulatedCharge.toFixed(2)),
+        billingAmount: parseFloat(existingBill.billingAmount.toFixed(2)),
+        lastUpdatedDate: todayDateStr,
         asOfDate: now.toISOString().split("T")[0],
-        dbRef: updatedBill._id,
+        dbRef: existingBill._id,
       });
     }
 
-    results.sort((a, b) => a.siteId?.localeCompare(b.siteId || ""));
+    // Sort results
+    landlords.sort((a, b) =>
+      a.siteId?.toString().localeCompare(b.siteId?.toString())
+    );
 
     return sendSuccess(
       res,
-      "Today's maintenance summary calculated and saved successfully",
+      "✅ Daily maintenance updated successfully for all landlords",
       results,
       200
     );
@@ -154,7 +169,7 @@ export const getTodayMaintenanceForAll = async (req, res) => {
     console.error("Get Today Maintenance (All) Error:", error);
     return sendError(
       res,
-      "Failed to calculate/save today's maintenance for all landlords",
+      "❌ Failed to calculate/save today's maintenance for all landlords",
       500,
       error.message
     );
@@ -248,21 +263,61 @@ export const getAllMaintenanceBills = async (req, res) => {
       {
         $lookup: {
           from: "units",
-          localField: "unitId",
-          foreignField: "_id",
+          let: { unitId: "$unitId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$_id", "$$unitId"] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                unitNumber: 1,
+                block: 1,
+                floor: 1,
+                status: 1,
+                // 👇 exclude anything else
+              },
+            },
+          ],
           as: "unit",
         },
       },
-      { $unwind: { path: "$unit", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: {
+          path: "$unit",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
       {
         $lookup: {
-          from: "landlords",
-          localField: "landlordId",
-          foreignField: "_id",
+          from: "users", // ✅ correct collection name
+          let: { landlordId: "$landlordId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$_id", "$$landlordId"] },
+                role: "landlord", // ✅ ensures we only get landlords
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                phone: 1,
+                email: 1,
+                joiningDate: 1, // make sure the field matches your schema
+              },
+            },
+          ],
           as: "landlord",
         },
       },
-      { $unwind: { path: "$landlord", preserveNullAndEmptyArrays: true } },
+      {
+        $unwind: { path: "$landlord", preserveNullAndEmptyArrays: true },
+      },
     ];
 
     // search after lookups (only when provided)
