@@ -26,6 +26,10 @@ const unitSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Landlord",
     },
+     tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+    },
     landlordHistory: [
       {
         landlordId: { type: mongoose.Schema.Types.ObjectId, ref: "Landlord" },

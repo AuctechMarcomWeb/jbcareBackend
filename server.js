@@ -17,6 +17,7 @@ import tenantRoutes from "./routes/User/tenantRoutes.js";
 import supervisorRoutes from "./routes/User/supervisorRoutes.js";
 import maintainCharge from "./routes/masters/maintainChargesRoutes.js";
 import maintenanceBillRoutes from "./routes/Bills/maintenanceBillRoutes.js";
+import paymentRoutes from './routes/Payment/payment-routes.js'
 
 dotenv.config();
 connectDB();
@@ -38,6 +39,7 @@ app.use("/api/tenants", tenantRoutes);
 app.use("/api/supervisors", supervisorRoutes);
 app.use("/api/maintain-charges", maintainCharge);
 app.use("/api/maintenance-bill", maintenanceBillRoutes);
+app.use("/api/payment", paymentRoutes);
 
 app.use("/api", uploadRoutes);
 
