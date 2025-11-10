@@ -68,7 +68,7 @@ export const createComplaint = async (req, res) => {
     // }
 
     if (
-      String(unit.siteId) !== String(site._id) 
+      String(unit.siteId) !== String(site._id)
       // ||
       // String(unit.projectId) !== String(project._id)
     ) {
@@ -121,8 +121,9 @@ export const updateComplaint = async (req, res) => {
       supervisorDetails, // { supervisorId, comments, images }
       materialDemand, // { materialName, quantity, reason, images }
       resolution, // { resolvedBy, images, remarks }
-      closedBy, // userId (customer confirmation)
-      closedImages = [],
+      closureDetails,
+      // closedBy, // userId (customer confirmation)
+      // closedImages = [],
       repushedDetails, // { count, reason }
     } = req.body;
 
@@ -135,7 +136,47 @@ export const updateComplaint = async (req, res) => {
     const complaint = await Complaint.findById(id);
     if (!complaint) return sendError(res, "Complaint not found", 404);
 
-    let newStatus = null;
+    const currentStatus = complaint.status;
+
+    // 🧩 Map action → next status
+    const actionStatusMap = {
+      review: "Under Review",
+      raiseMaterialDemand: "Material Demand Raised",
+      resolve: "Resolved",
+      verifyResolution: "Closed",
+      repush: "Repushed",
+    };
+
+    let newStatus = actionStatusMap[action];
+
+    // ✅ Allowed transitions
+    const allowedTransitions = {
+      Pending: ["Under Review"],
+      "Under Review": ["Material Demand Raised", "Resolved"],
+      "Material Demand Raised": ["Resolved"],
+      Resolved: ["Closed", "Repushed"],
+      Repushed: ["Under Review"],
+      Closed: [], // 🔒 Final state
+    };
+
+    // 🚫 Skip if same status already applied
+    if (currentStatus === newStatus) {
+      return sendSuccess(
+        res,
+        `Complaint already in "${newStatus}" status. No update required.`,
+        complaint
+      );
+    }
+
+    // 🚫 Invalid transition
+    if (!allowedTransitions[currentStatus]?.includes(newStatus)) {
+      return sendSuccess(
+        res,
+        `No status update performed (invalid transition from "${currentStatus}" → "${newStatus}")`,
+        complaint
+      );
+    }
+
     const newHistoryEntry = {
       updatedBy: userId,
       updatedByRole: userRole,
@@ -229,8 +270,8 @@ export const updateComplaint = async (req, res) => {
         }
         newStatus = "Closed";
         newHistoryEntry.status = "Closed";
-        newHistoryEntry.closedBy = closedBy;
-        newHistoryEntry.closedImages = closedImages;
+        // ✅ Build structured closure details object
+        newHistoryEntry.closureDetails = closureDetails;
         break;
 
       /**
@@ -249,6 +290,7 @@ export const updateComplaint = async (req, res) => {
       default:
         return sendError(res, "Invalid action type", 400);
     }
+    console.log("🧩 New History Entry:", newHistoryEntry);
 
     // 🔹 Apply update
     complaint.status = newStatus;
