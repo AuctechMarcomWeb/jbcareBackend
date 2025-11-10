@@ -525,3 +525,377 @@ export const getMaintenanceBillsByLandlord = async (req, res) => {
     });
   }
 };
+
+// ==================================================
+
+export const deleteMaintenanceBill = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 🧩 1️⃣ Validate id
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Bill ID is required",
+      });
+    }
+
+    // 🧹 2️⃣ Find and delete
+    const deletedBill = await MaintenanceBill.findByIdAndDelete(id);
+
+    if (!deletedBill) {
+      return res.status(404).json({
+        success: false,
+        message: "Maintenance bill not found",
+      });
+    }
+
+    // ✅ 3️⃣ Success response
+    return res.status(200).json({
+      success: true,
+      message: "Maintenance bill deleted successfully",
+      data: deletedBill,
+    });
+  } catch (error) {
+    console.error("❌ deleteMaintenanceBill Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
+
+export const createMaintenanceBill = async (req, res) => {
+  try {
+    const {
+      landlordId,
+      siteId,
+      unitId,
+      fromDate,
+      toDate,
+      maintenanceAmount = 0,
+      electricityAmount = 0,
+    } = req.body;
+
+    // --------------------------------------------
+    // 🧩 1️⃣ Validation
+    // --------------------------------------------
+    if (!landlordId || !siteId || !unitId || !fromDate || !toDate) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Missing required fields: landlordId, siteId, unitId, fromDate, toDate",
+      });
+    }
+
+    // --------------------------------------------
+    // 🧮 2️⃣ Calculate totals (with 18% GST)
+    // --------------------------------------------
+    const gstPercent = 18;
+    const gstAmount = (maintenanceAmount * gstPercent) / 100;
+
+    const totalAmount =
+      Number(maintenanceAmount) + Number(electricityAmount) + Number(gstAmount);
+
+    // --------------------------------------------
+    // 🧾 3️⃣ Create and save new maintenance bill
+    // --------------------------------------------
+    const newBill = await MaintenanceBill.create({
+      landlordId,
+      siteId,
+      unitId,
+      fromDate: new Date(fromDate),
+      toDate: new Date(toDate),
+      maintenanceAmount,
+      electricityAmount,
+      gstAmount,
+      totalAmount,
+      billingAmount: totalAmount,
+      lastUpdatedDate: new Date().toISOString(),
+      status: "Unpaid",
+      paymentStatus: "Pending",
+    });
+
+    // --------------------------------------------
+    // ✅ 4️⃣ Response
+    // --------------------------------------------
+    return res.status(201).json({
+      success: true,
+      message: "Maintenance bill created successfully",
+      data: newBill,
+      calculation: {
+        gstPercent,
+        gstAmount,
+        totalAmount,
+      },
+    });
+  } catch (error) {
+    console.error("❌ createMaintenanceBill Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
+
+// export const getAllMaintenanceBills1 = async (req, res) => {
+//   try {
+//     const {
+//       search = "",
+//       page = 1,
+//       limit = 10,
+//       landlordId,
+//       fromDate,
+//       toDate,
+//     } = req.query;
+
+//     // --------------------------------------------
+//     // 🧩 1️⃣ Pagination setup
+//     // --------------------------------------------
+//     const p = Math.max(1, Number(page));
+//     const lim = Math.max(1, Number(limit));
+//     const skip = (p - 1) * lim;
+
+//     // --------------------------------------------
+//     // 🔍 2️⃣ Build filters
+//     // --------------------------------------------
+//     const filters = {};
+
+//     // ✅ landlord filter
+//     if (landlordId && mongoose.Types.ObjectId.isValid(landlordId)) {
+//       filters.landlordId = landlordId;
+//     }
+
+//     // ✅ fromDate & toDate filter (based on Bill’s fromDate/toDate)
+//     if (fromDate || toDate) {
+//       filters.$and = [];
+
+//       if (fromDate) {
+//         const parsedFrom = new Date(fromDate);
+//         if (!isNaN(parsedFrom)) {
+//           filters.$and.push({ toDate: { $gte: parsedFrom } });
+//         }
+//       }
+
+//       if (toDate) {
+//         const parsedTo = new Date(toDate);
+//         if (!isNaN(parsedTo)) {
+//           filters.$and.push({ fromDate: { $lte: parsedTo } });
+//         }
+//       }
+
+//       // remove $and if empty
+//       if (filters.$and.length === 0) delete filters.$and;
+//     }
+
+//     // --------------------------------------------
+//     // 📄 3️⃣ Query with populate
+//     // --------------------------------------------
+//     const query = MaintenanceBill.find(filters)
+//       .populate("landlordId")
+//       .populate("siteId")
+//       .populate("unitId")
+//       .sort({ fromDate: -1 });
+
+//     let bills = await query;
+
+//     // --------------------------------------------
+//     // 🔍 4️⃣ Client-side search (for populated fields)
+//     // --------------------------------------------
+//     if (search.trim() !== "") {
+//       const regex = new RegExp(search, "i");
+//       bills = bills.filter(
+//         (bill) =>
+//           regex.test(bill?.landlordId?.name || "") ||
+//           regex.test(bill?.siteId?.siteName || "") ||
+//           regex.test(bill?.unitId?.unitName || "")
+//       );
+//     }
+
+//     // --------------------------------------------
+//     // 📑 5️⃣ Pagination
+//     // --------------------------------------------
+//     const total = bills.length;
+//     const paginatedBills = bills.slice(skip, skip + lim);
+
+//     // --------------------------------------------
+//     // ✅ 6️⃣ Response
+//     // --------------------------------------------
+//     return res.status(200).json({
+//       success: true,
+//       message: "Maintenance bills fetched successfully",
+//       total,
+//       count: paginatedBills.length,
+//       page: p,
+//       limit: lim,
+//       filters,
+//       data: paginatedBills,
+//     });
+//   } catch (error) {
+//     console.error("❌ getAllMaintenanceBills Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+export const getAllMaintenanceBills1 = async (req, res) => {
+  try {
+    const {
+      search = "",
+      page = 1,
+      limit = 10,
+      landlordId,
+      fromDate,
+      toDate,
+    } = req.query;
+
+    // --------------------------------------------
+    // Pagination
+    // --------------------------------------------
+    const p = Math.max(1, Number(page));
+    const lim = Math.max(1, Number(limit));
+    const skip = (p - 1) * lim;
+
+    // --------------------------------------------
+    // Build filters
+    // --------------------------------------------
+    const filters = {};
+
+    // landlord filter
+    if (landlordId && mongoose.Types.ObjectId.isValid(landlordId)) {
+      filters.landlordId = new mongoose.Types.ObjectId(landlordId);
+    }
+
+    // date-range filter based on bill.fromDate / bill.toDate overlap:
+    // include bills whose toDate >= parsedFrom AND fromDate <= parsedTo
+    if (fromDate || toDate) {
+      const andClauses = [];
+      if (fromDate) {
+        const parsedFrom = new Date(fromDate);
+        if (!isNaN(parsedFrom)) {
+          andClauses.push({ toDate: { $gte: parsedFrom } });
+        }
+      }
+      if (toDate) {
+        const parsedTo = new Date(toDate);
+        if (!isNaN(parsedTo)) {
+          andClauses.push({ fromDate: { $lte: parsedTo } });
+        }
+      }
+      if (andClauses.length > 0) {
+        filters.$and = andClauses;
+      }
+    }
+
+    // --------------------------------------------
+    // Query and populate
+    // --------------------------------------------
+    let bills = await MaintenanceBill.find(filters)
+      .populate("landlordId")
+      .populate("siteId")
+      .populate("unitId")
+      .sort({ fromDate: -1 });
+
+    // Client-side search for populated fields (landlord.name, site.siteName, unit.unitName)
+    if (search.trim() !== "") {
+      const regex = new RegExp(search.trim(), "i");
+      bills = bills.filter(
+        (bill) =>
+          regex.test(bill?.landlordId?.name || "") ||
+          regex.test(bill?.siteId?.siteName || "") ||
+          regex.test(bill?.unitId?.unitNumber || "") ||
+          regex.test(bill?.unitId?.unitName || "")
+      );
+    }
+
+    // Pagination of the filtered list
+    const total = bills.length;
+    const paginatedBills = bills.slice(skip, skip + lim);
+
+    // --------------------------------------------
+    // Summary calculations (efficient where possible)
+    // --------------------------------------------
+
+    // 1) If landlordId given, compute overall previous totals for that landlord (all-time)
+    let previousCount = 0;
+    let unpaidCount = 0;
+    let unpaidTotalAmount = 0;
+
+    if (landlordId && mongoose.Types.ObjectId.isValid(landlordId)) {
+      const landlordObjectId = new mongoose.Types.ObjectId(landlordId);
+
+      // total number of bills for landlord
+      previousCount = await MaintenanceBill.countDocuments({
+        landlordId: landlordObjectId,
+      });
+
+      // aggregate unpaid count and unpaid sum for landlord
+      const agg = await MaintenanceBill.aggregate([
+        { $match: { landlordId: landlordObjectId, status: "Unpaid" } },
+        {
+          $group: {
+            _id: null,
+            unpaidCount: { $sum: 1 },
+            unpaidTotal: {
+              $sum: {
+                $ifNull: ["$billingAmount", "$totalAmount", 0],
+              },
+            },
+          },
+        },
+      ]);
+
+      if (agg.length > 0) {
+        unpaidCount = agg[0].unpaidCount || 0;
+        unpaidTotalAmount = agg[0].unpaidTotal || 0;
+      }
+    }
+
+    // 2) For the current filtered result set, compute unpaid counts/sums (skip paid)
+    // Use the already fetched `bills` array (populated); compute from that
+    let unpaidCountInFilter = 0;
+    let unpaidTotalInFilter = 0;
+
+    for (const bill of bills) {
+      if (bill.status === "Unpaid") {
+        unpaidCountInFilter += 1;
+        unpaidTotalInFilter += Number(
+          bill.billingAmount ?? bill.totalAmount ?? 0
+        );
+      }
+    }
+
+    // --------------------------------------------
+    // Final response
+    // --------------------------------------------
+    return res.status(200).json({
+      success: true,
+      message: "Maintenance bills fetched successfully",
+      total,
+      count: paginatedBills.length,
+      page: p,
+      limit: lim,
+      filters,
+      summary: {
+        previousCount,
+        unpaidCount, // all-time unpaid for landlord
+        unpaidTotalAmount, // all-time unpaid sum for landlord
+        unpaidCountInFilter, // unpaid count within applied filters
+        unpaidTotalInFilter, // unpaid sum within applied filters
+      },
+      data: paginatedBills,
+    });
+  } catch (error) {
+    console.error("❌ getAllMaintenanceBills1 Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
