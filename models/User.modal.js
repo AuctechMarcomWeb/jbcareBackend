@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema(
       required: [true, "Password is required"],
       minlength: 6,
     },
-    referenceId: { type: mongoose.Schema.Types.ObjectId }, // link to landlord/tenant if needed
+    referenceId: { type: mongoose.Schema.Types.ObjectId },
     siteId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Site",
