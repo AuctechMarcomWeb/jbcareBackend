@@ -28,7 +28,7 @@ export const addTenant = async (req, res) => {
     if (!name) missingFields.push("name");
     if (!phone) missingFields.push("phone");
     if (!siteId) missingFields.push("siteId");
-    if (!projectId) missingFields.push("projectId");
+    // if (!projectId) missingFields.push("projectId");
     if (!unitId) missingFields.push("unitId");
     if (!landlordId) missingFields.push("landlordId");
     if (!addedBy) missingFields.push("addedBy");
@@ -75,7 +75,7 @@ export const addTenant = async (req, res) => {
       address,
       profilePic,
       siteId,
-      projectId,
+      // projectId,
       unitId,
       landlordId,
       addedBy,
@@ -102,7 +102,7 @@ export const addTenant = async (req, res) => {
       role: "tenant",
       referenceId: tenant?._id, // optional to link
       siteId, // ✅ added
-      projectId, // ✅ added
+      // projectId, // ✅ added
       unitId, // ✅ added
     });
     // 🔹 Save userId back to tenant
@@ -115,7 +115,7 @@ export const addTenant = async (req, res) => {
   }
 };
 
-// 🟡 Get Tenants (with filters + pagination)
+// 🟡 Get Tenants (with filters + pagination + date range + order)
 export const getTenants = async (req, res) => {
   try {
     const {
@@ -125,43 +125,60 @@ export const getTenants = async (req, res) => {
       landlordId,
       unitId,
       isActive,
+      fromDate,
+      toDate,
+      order = "desc", // optional: "asc" or "desc"
       page = 1,
       limit = 10,
     } = req.query;
 
     const query = {};
-    if (siteId) query.siteId = siteId;
-    if (projectId) query.projectId = projectId;
-    if (landlordId) query.landlordId = landlordId;
-    if (unitId) query.unitId = unitId;
+
+    // ✅ Handle null/undefined safely
+    if (siteId && siteId !== "null" && siteId !== "undefined")
+      query.siteId = siteId;
+    if (projectId && projectId !== "null" && projectId !== "undefined")
+      query.projectId = projectId;
+    if (landlordId && landlordId !== "null" && landlordId !== "undefined")
+      query.landlordId = landlordId;
+    if (unitId && unitId !== "null" && unitId !== "undefined")
+      query.unitId = unitId;
+
     if (isActive !== undefined) query.isActive = isActive === "true";
-    if (search)
+
+    if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
         { phone: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
       ];
+    }
+
+    // 📅 Filter by Date Range (createdAt)
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) query.createdAt.$gte = new Date(fromDate);
+      if (toDate) {
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = endOfDay;
+      }
+    }
+
+    // 🧾 Sort order (latest first by default)
+    const sortOrder = order === "asc" ? 1 : -1;
 
     const tenants = await Tenant.find(query)
-      .populate("siteId projectId unitId landlordId")
+      .populate("siteId  unitId landlordId")
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .sort({ createdAt: -1 });
-
-    if (tenants.length === 0) {
-      return sendSuccess(
-        res,
-        "No tenants found.",
-        { tenants: [], total: 0, page: Number(page), limit: Number(limit) },
-        200
-      );
-    }
+      .sort({ createdAt: sortOrder });
 
     const total = await Tenant.countDocuments(query);
 
     return sendSuccess(
       res,
-      "Tenants fetched successfully.",
+      tenants.length ? "Tenants fetched successfully." : "No tenants found.",
       {
         tenants,
         total,
@@ -183,7 +200,7 @@ export const getTenantById = async (req, res) => {
   }
   try {
     const tenant = await Tenant.findById(req.params.id).populate(
-      "siteId projectId unitId landlordId"
+      "siteId  unitId landlordId"
     );
     if (!tenant)
       return res

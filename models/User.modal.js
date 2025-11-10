@@ -33,6 +33,9 @@ const userSchema = new mongoose.Schema(
       enum: ["admin", "user", "supervisor", "landlord", "tenant"],
       default: "user",
     },
+    profilePic:{
+      type:String
+    },
     password: {
       type: String,
       required: [true, "Password is required"],
@@ -51,6 +54,8 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Unit",
     },
+    resetPasswordOTP: { type: String },
+    resetPasswordExpires: { type: Date },
   },
   {
     timestamps: true,
@@ -74,6 +79,7 @@ userSchema.index({ email: 1 });
 userSchema.index({ siteId: 1 });
 userSchema.index({ projectId: 1 });
 userSchema.index({ unitId: 1 });
+userSchema.index({ referenceId: 1 });
 
 const User = mongoose.model("User", userSchema);
 export default User;

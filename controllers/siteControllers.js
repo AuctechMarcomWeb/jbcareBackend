@@ -42,12 +42,14 @@ export const createSite = async (req, res) => {
   }
 };
 
+// ✅ Get All Sites (with search, pagination, date range, and sort order)
 export const getAllSites = async (req, res) => {
   try {
     const {
       search,
       fromDate,
       toDate,
+      order = "desc", // default: latest first
       isPagination = "true",
       page = 1,
       limit = 10,
@@ -55,48 +57,70 @@ export const getAllSites = async (req, res) => {
 
     const match = {};
 
-    if (search && search.trim() !== "") {
-      const regex = new RegExp(search.trim(), "i");
+    // --- Normalize pagination
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(1, parseInt(limit) || 10);
+
+    // --- Search filter (correct fields)
+    const searchTerm =
+      typeof search === "string" &&
+      search.trim() !== "" &&
+      search.trim().toLowerCase() !== "null" &&
+      search.trim().toLowerCase() !== "undefined"
+        ? search.trim()
+        : null;
+
+    if (searchTerm) {
       match.$or = [
-        { name: { $regex: regex } },
-        { location: { $regex: regex } },
-        { city: { $regex: regex } },
+        { siteName: { $regex: searchTerm, $options: "i" } },
+        { siteAddress: { $regex: searchTerm, $options: "i" } },
       ];
     }
 
+    // --- Date range filter
     if (fromDate || toDate) {
       match.createdAt = {};
-      if (fromDate) {
-        match.createdAt.$gte = new Date(fromDate);
-      }
+      if (fromDate) match.createdAt.$gte = new Date(fromDate);
       if (toDate) {
-        const nextDay = new Date(toDate);
-        nextDay.setDate(nextDay.getDate() + 1);
-        match.createdAt.$lt = nextDay;
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        match.createdAt.$lte = endOfDay;
       }
     }
 
-    const query = Site.find(match).sort({ createdAt: -1 });
+    // --- Sort order (latest first by default)
+    const sortOrder = order === "asc" ? 1 : -1;
 
-    let total = await Site.countDocuments(match);
+    // --- Build query
+    let query = Site.find(match).sort({ createdAt: sortOrder });
+
+    const total = await Site.countDocuments(match);
+
+    // --- Apply pagination if enabled
     if (isPagination === "true") {
-      query.skip((page - 1) * limit).limit(parseInt(limit));
+      query = query.skip((pageNum - 1) * limitNum).limit(limitNum);
     }
 
     const sites = await query;
 
     return sendSuccess(
       res,
-      "Sites fetched successfully",
+      sites.length ? "Sites fetched successfully" : "No sites found.",
       {
         sites,
         totalSites: total,
-        totalPages: Math.ceil(total / limit),
-        currentPage: Number(page),
+        totalPages:
+          isPagination === "true"
+            ? Math.ceil(total / limitNum)
+            : total > 0
+            ? 1
+            : 0,
+        currentPage: pageNum,
       },
       200
     );
   } catch (err) {
+    console.error("Get Sites Error:", err);
     return sendError(res, "Failed to fetch sites", 500, err.message);
   }
 };

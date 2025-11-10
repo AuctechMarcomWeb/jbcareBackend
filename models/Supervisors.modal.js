@@ -30,7 +30,7 @@ const supervisorSchema = new mongoose.Schema(
 );
 supervisorSchema.index({ email: 1 });
 supervisorSchema.index({ siteId: 1 });
-supervisorSchema.index({ projectId: 1 });
+// supervisorSchema.index({ projectId: 1 });
 supervisorSchema.index({ unitId: 1 });
 const Supervisor = mongoose.model("Supervisor", supervisorSchema);
 export default Supervisor;

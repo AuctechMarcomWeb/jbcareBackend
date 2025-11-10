@@ -15,7 +15,7 @@ const unitSchema = new mongoose.Schema(
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
-      required: true,
+      // required: true,
     },
     unitTypeId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -25,6 +25,10 @@ const unitSchema = new mongoose.Schema(
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Landlord",
+    },
+     tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
     },
     landlordHistory: [
       {

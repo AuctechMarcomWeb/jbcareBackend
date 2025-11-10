@@ -20,12 +20,12 @@ export const addLandlord = async (req, res) => {
     } = req.body;
 
     // 🧩 Validation
-    if (!name || !phone || !siteId || !projectId || unitIds.length === 0) {
+    if (!name || !phone || !siteId || unitIds.length === 0) {
       const missingFields = [];
       if (!name) missingFields.push("name");
       if (!phone) missingFields.push("phone");
       if (!siteId) missingFields.push("siteId");
-      if (!projectId) missingFields.push("projectId");
+      // if (!projectId) missingFields.push("projectId");
       if (unitIds.length === 0) missingFields.push("unitIds");
 
       return sendError(
@@ -49,7 +49,7 @@ export const addLandlord = async (req, res) => {
       address,
       profilePic,
       siteId,
-      projectId,
+      // projectId,
       unitIds,
       isActive: true,
       createdBy: req.user?._id || null,
@@ -120,7 +120,7 @@ export const addLandlord = async (req, res) => {
       role: "landlord",
       referenceId: landlord?._id,
       siteId, // ✅ from req.body
-      projectId, // ✅ from req.body
+      // projectId, // ✅ from req.body
       unitId: unitIds[0] || null, // ✅ first unit
     });
 
@@ -135,7 +135,7 @@ export const addLandlord = async (req, res) => {
   }
 };
 
-// 🟡 Get Landlords (with filters + pagination)
+// 🟡 Get Landlords (with filters + pagination + date range + latest first)
 export const getLandlords = async (req, res) => {
   try {
     const {
@@ -144,47 +144,64 @@ export const getLandlords = async (req, res) => {
       projectId,
       unitId,
       isActive,
+      fromDate,
+      toDate,
+      order = "desc", // 🔹 optional: "asc" or "desc"
       page = 1,
       limit = 10,
     } = req.query;
 
     const query = {};
-    if (siteId) query.siteId = siteId;
-    if (projectId) query.projectId = projectId;
+
+    // ✅ Handle null/undefined safely
+    if (siteId && siteId !== "null" && siteId !== "undefined")
+      query.siteId = siteId;
+    if (projectId && projectId !== "null" && projectId !== "undefined")
+      query.projectId = projectId;
+
     if (isActive !== undefined) query.isActive = isActive === "true";
-    if (search)
+
+    if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
         { phone: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },
       ];
+    }
+
     // 🔍 Filter by specific unitId
-    if (unitId) query.unitIds = { $in: [new mongoose.Types.ObjectId(unitId)] };
+    if (unitId && unitId !== "null" && unitId !== "undefined") {
+      query.unitIds = { $in: [new mongoose.Types.ObjectId(unitId)] };
+    }
+
+    // 📅 Filter by Date Range (createdAt)
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) query.createdAt.$gte = new Date(fromDate);
+      if (toDate) {
+        // Include entire day till 23:59:59
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = endOfDay;
+      }
+    }
+
+    // 🧾 Sort order (latest first by default)
+    const sortOrder = order === "asc" ? 1 : -1;
+
     const landlords = await Landlord.find(query)
-      .populate("siteId projectId unitIds")
+      .populate("siteId unitIds")
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .sort({ createdAt: -1 });
-
-    if (landlords.length === 0) {
-      return sendSuccess(
-        res,
-        "No landlords found.",
-        {
-          data: [],
-          total: 0,
-          page: Number(page),
-          limit: Number(limit),
-        },
-        200
-      );
-    }
+      .sort({ createdAt: sortOrder });
 
     const total = await Landlord.countDocuments(query);
 
     return sendSuccess(
       res,
-      "Landlords fetched successfully.",
+      landlords.length
+        ? "Landlords fetched successfully."
+        : "No landlords found.",
       {
         data: landlords,
         total,
@@ -211,7 +228,7 @@ export const getLandlordById = async (req, res) => {
   }
   try {
     const landlord = await Landlord.findById(req.params.id).populate(
-      "siteId projectId unitIds"
+      "siteId unitIds"
     );
     if (!landlord) return sendError(res, "Landlord not found.", 404);
 

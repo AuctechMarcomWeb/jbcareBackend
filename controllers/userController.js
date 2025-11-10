@@ -2,6 +2,7 @@ import User from "../models/User.modal.js";
 import bcrypt from "bcryptjs";
 import Tenant from "../models/Tenant.modal.js";
 import Landlord from "../models/LandLord.modal.js";
+
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
 // Create user (admin only) - alternative to register route
@@ -86,9 +87,9 @@ export const getUsers = async (req, res) => {
       users = await User.find(query)
         .select("-password")
         .sort({ [sortBy]: sortOrder })
-        .populate("siteId") 
+        .populate("siteId")
         .populate("projectId")
-        .populate("unitId"); 
+        .populate("unitId");
       totalUsers = users.length;
       totalPages = 1;
     } else {
@@ -99,9 +100,9 @@ export const getUsers = async (req, res) => {
         .sort({ [sortBy]: sortOrder })
         .skip(skip)
         .limit(parseInt(limit))
-        .populate("siteId") 
+        .populate("siteId")
         .populate("projectId")
-        .populate("unitId"); 
+        .populate("unitId");
       totalUsers = await User.countDocuments(query);
       totalPages = Math.ceil(totalUsers / parseInt(limit));
     }
@@ -155,7 +156,11 @@ export const getUserById = async (req, res) => {
     //     .json({ message: "Not authorized to view this user" });
     // }
 
-    let user = await User.findById(id).select("-password");
+    let user = await User.findById(id)
+      .select("-password")
+      .populate("siteId")
+      .populate("projectId")
+      .populate("unitId", "_id unitNumber block floor areaSqFt");
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // Populate referenceId dynamically based on role
@@ -178,37 +183,82 @@ export const getUserById = async (req, res) => {
   }
 };
 
-// PUT /api/users/:id - update user (admin/supervisor or owner)
+// controllers/userController.js
+
+export const getUserByToken = async (req, res) => {
+  console.log("Request received from middleware", req.user);
+
+  try {
+    // ✅ req.user is already populated by protect middleware
+    if (!req.user) {
+      return sendError(
+        res,
+        "Not authorised or invalid token",
+        401,
+        "Not authorised or invalid token"
+      );
+    }
+
+    // Optional: If you want fresh data from DB (not from req.user)
+    const user = await User.findById(req.user._id).select("-password");
+
+    if (!user) {
+      return sendError(res, "User not found", 404, "User not found");
+    }
+    // 🔁 Dynamically fetch referenceId based on role
+    let refDoc = null;
+    if (user.role === "landlord") {
+      refDoc = await Landlord.findById(user.referenceId);
+    } else if (user.role === "tenant") {
+      refDoc = await Tenant.findById(user.referenceId);
+    }
+
+    // merge and send
+    const populatedUser = { ...user.toObject(), referenceId: refDoc };
+
+    return sendSuccess(res, "User fetched successfully", populatedUser, 200);
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return sendError(res, "Something went wrong", 500, error.message);
+  }
+};
+
 export const updateUser = async (req, res) => {
   try {
-    const { id } = req.params;
-    if (
-      req.user.role !== "admin" &&
-      req.user.role !== "supervisor" &&
-      req.user._id.toString() !== id
-    ) {
-      return res
-        .status(403)
-        .json({ message: "Not authorized to update this user" });
-    }
-    const updates = { ...req.body };
+    const { id } = req.params; // user id from URL
+    const { role, ...updates } = req.body; // extract role separately
 
-    // if password provided, hash it
-    if (updates.password) {
-      const salt = await bcrypt.genSalt(10);
-      updates.password = await bcrypt.hash(updates.password, salt);
+    // ✅ Find user
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const user = await User.findByIdAndUpdate(id, updates, {
+    // ✅ If role is being updated, check if requester is admin
+    if (role) {
+      if (req.body.requesterRole === "admin") {
+        updates.role = role; // only admin can update role
+      } else {
+        console.warn(`Non-admin tried to update role for user ${id}`);
+      }
+    }
+
+    // ✅ Update user
+    const updatedUser = await User.findByIdAndUpdate(id, updates, {
       new: true,
       runValidators: true,
     }).select("-password");
-    if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({ message: "User updated", user });
+
+    return res.status(200).json({
+      message: "User updated successfully",
+      user: updatedUser,
+    });
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error updating user", error: err.message });
+    console.error("Error updating user:", err);
+    return res.status(500).json({
+      message: "Error updating user",
+      error: err.message,
+    });
   }
 };
 
@@ -226,5 +276,44 @@ export const deleteUser = async (req, res) => {
     res
       .status(500)
       .json({ message: "Error deleting user", error: err.message });
+  }
+};
+
+/**
+ * 🔑 Change Password (for logged-in users)
+ */
+/**
+ * 🔑 Change Password (for logged-in users)
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const { id } = req.params; // userId from URL params
+    const { currentPassword, newPassword } = req.body;
+
+    // ✅ Validate required fields
+    if (!id || !currentPassword || !newPassword) {
+      return sendError(
+        res,
+        "All fields (userId in params, currentPassword, newPassword) are required",
+        400
+      );
+    }
+
+    const user = await User.findById(id);
+    if (!user) return sendError(res, "User not found", 404);
+
+    // ✅ Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) return sendError(res, "Current password is incorrect", 400);
+
+    // ✅ Assign plain new password — pre('save') hook will hash automatically
+    user.password = newPassword;
+
+    await user.save();
+
+    return sendSuccess(res, "Password changed successfully", null, 200);
+  } catch (error) {
+    console.error("Change Password Error:", error);
+    return sendError(res, "Failed to change password", 500, error.message);
   }
 };

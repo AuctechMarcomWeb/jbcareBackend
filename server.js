@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db.js";
+
+import "./utils/cron-jobs.js";
 import authRoutes from "./routes/Auth/authRoutes.js";
 import userRoutes from "./routes/User/userRoutes.js";
 import siteRoutes from "./routes/masters/siteRoutes.js";
@@ -13,6 +15,9 @@ import uploadRoutes from "./routes/utilRoutes/uploadRoutes.js";
 import landlordRoutes from "./routes/User/landlordRoutes.js";
 import tenantRoutes from "./routes/User/tenantRoutes.js";
 import supervisorRoutes from "./routes/User/supervisorRoutes.js";
+import maintainCharge from "./routes/masters/maintainChargesRoutes.js";
+import maintenanceBillRoutes from "./routes/Bills/maintenanceBillRoutes.js";
+import paymentRoutes from './routes/Payment/payment-routes.js'
 
 dotenv.config();
 connectDB();
@@ -32,6 +37,9 @@ app.use("/api/complaints", complaintRoutes);
 app.use("/api/landlords", landlordRoutes);
 app.use("/api/tenants", tenantRoutes);
 app.use("/api/supervisors", supervisorRoutes);
+app.use("/api/maintain-charges", maintainCharge);
+app.use("/api/maintenance-bill", maintenanceBillRoutes);
+app.use("/api/payment", paymentRoutes);
 
 app.use("/api", uploadRoutes);
 

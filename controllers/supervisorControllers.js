@@ -2,6 +2,7 @@ import express from "express";
 import Supervisor from "../models/Supervisors.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import { createUser } from "../utils/createUser.js";
+import mongoose from "mongoose";
 
 const router = express.Router();
 
@@ -38,13 +39,19 @@ export const createSupervisor = async (req, res) => {
     if (email && typeof email !== "string")
       return sendError(res, "Email must be a string", 400);
     if (!siteId) return sendError(res, "siteId is required", 400);
-    if (!projectId) return sendError(res, "projectId is required", 400);
+    // if (!projectId) return sendError(res, "projectId is required", 400);
     if (!unitId) return sendError(res, "unitId is required", 400);
     if (
-      verificationDocuments &&
-      !validateVerificationDocs(verificationDocuments)
-    )
-      return sendError(res, "Invalid verificationDocuments format", 400);
+      !verificationDocuments ||
+      !Array.isArray(verificationDocuments) ||
+      verificationDocuments.length === 0
+    ) {
+      return sendError(
+        res,
+        "At least one verification document is required",
+        400
+      );
+    }
 
     // 1️⃣ Create Supervisor document first
     const supervisor = new Supervisor({
@@ -53,7 +60,7 @@ export const createSupervisor = async (req, res) => {
       email,
       verificationDocuments,
       siteId,
-      projectId,
+      // projectId,
       unitId, // single unit
       isActive,
     });
@@ -68,7 +75,7 @@ export const createSupervisor = async (req, res) => {
       referenceId: supervisor._id,
       password: "ABC123",
       siteId,
-      projectId,
+      // projectId,
       unitId, // single unit
     };
 
@@ -88,7 +95,6 @@ export const createSupervisor = async (req, res) => {
     return sendError(res, "Server error", 500, err.message);
   }
 };
-
 export const getSupervisors = async (req, res) => {
   try {
     const {
@@ -102,78 +108,106 @@ export const getSupervisors = async (req, res) => {
       limit = 10,
       sortBy = "createdAt",
       order = "desc",
-      isPagination = "true", // new param
+      isPagination = "true",
     } = req.query;
 
     const filters = {};
 
-    if (siteId) filters.siteId = siteId;
-    if (projectId) filters.projectId = projectId;
-    if (unitId) filters.unitId = unitId; // checks if unitId exists in array
-    if (name) filters.name = { $regex: name, $options: "i" };
-    if (phone) filters.phone = { $regex: phone, $options: "i" };
-    if (isActive !== undefined) filters.isActive = isActive === "true";
+    // ✅ Apply ObjectId-based filters safely
+    const addObjectIdFilter = (key, value) => {
+      if (value && mongoose.Types.ObjectId.isValid(value)) {
+        filters[key] = new mongoose.Types.ObjectId(value);
+      } else if (value) {
+        console.warn(`⚠️ Invalid ObjectId for ${key}:`, value);
+      }
+    };
 
+    addObjectIdFilter("siteId", siteId);
+    addObjectIdFilter("projectId", projectId);
+    addObjectIdFilter("unitId", unitId);
+
+    // ✅ String filters (case-insensitive)
+    if (name && name.trim() !== "") {
+      filters.name = { $regex: name.trim(), $options: "i" };
+    }
+
+    if (phone && phone.trim() !== "") {
+      filters.phone = { $regex: phone.trim(), $options: "i" };
+    }
+
+    // ✅ Boolean filter (supports true/false/1/0)
+    if (isActive !== undefined && isActive !== "") {
+      filters.isActive = ["true", "1", true, 1].includes(isActive);
+    }
+
+    console.log("🧩 Applied Filters =>", JSON.stringify(filters, null, 2));
+
+    // ✅ Sorting
     const sortOrder = order === "asc" ? 1 : -1;
+    const sortConfig = { [sortBy]: sortOrder };
 
+    // ✅ Pagination handling
     let supervisors, total;
-
     if (isPagination === "true") {
       const skip = (parseInt(page) - 1) * parseInt(limit);
       total = await Supervisor.countDocuments(filters);
-      supervisors = await Supervisor.find(filters)
-        .sort({ [sortBy]: sortOrder })
-        .skip(skip)
-        .limit(parseInt(limit))
 
-      return sendSuccess(
-        res,
-        "Supervisors fetched successfully",
-        {
-          supervisors,
-          total,
-          page: parseInt(page),
-          limit: parseInt(limit),
-        },
-        200
-      );
+      supervisors = await Supervisor.find(filters)
+        .populate("siteId", "siteName") // only pick useful fields
+        // .populate("projectId", "projectName")
+        .populate("unitId", "unitNumber")
+        .sort(sortConfig)
+        .skip(skip)
+        .limit(parseInt(limit));
+
+      return sendSuccess(res, "Supervisors fetched successfully", {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        supervisors,
+      });
     } else {
       supervisors = await Supervisor.find(filters)
-        .sort({ [sortBy]: sortOrder })
-     ;
+        .populate("siteId", "name")
+        // .populate("projectId", "name")
+        .populate("unitId", "name")
+        .sort(sortConfig);
+
       total = supervisors.length;
-      return sendSuccess(
-        res,
-        "Supervisors fetched successfully",
-        {
-          total,
-          supervisors,
-        },
-        400
-      );
+
+      return sendSuccess(res, "Supervisors fetched successfully", {
+        total,
+        supervisors,
+      });
     }
   } catch (err) {
-    return sendError(res, err.message);
+    console.error("❌ Error in getSupervisors:", err);
+    return sendError(res, err.message || "Server Error");
   }
 };
 
 // ➤ Get Supervisor by ID
 export const getSupervisorById = async (req, res) => {
-  if (req?.params?.id) {
+  console.log("Supervisor id ==>", req?.params?.id);
+
+  if (!req?.params?.id) {
     return sendError(res, "Id not found/Invalid", 404, "Id not found/Invalid");
   }
   try {
-    const supervisor = await Supervisor.findById(req.params.id);
+    const supervisor = await Supervisor.findById(req.params.id)
+      .populate("siteId") // populate specific fields
+      // .populate("projectId")
+      .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
-    return sendSuccess(res, supervisor);
+    return sendSuccess(res, "Fetched the supervisor by id", supervisor, 200);
   } catch (err) {
-    return sendError(res, err.message);
+    return sendError(res, err.message, 500, err.message);
   }
 };
 
 // ➤ Update Supervisor
 export const updateSupervisor = async (req, res) => {
-  if (req?.params?.id) {
+  if (!req?.params?.id) {
     return sendError(res, "Id not found/Invalid", 404, "Id not found/Invalid");
   }
   if (Object.keys(req.body).length === 0) {
@@ -186,17 +220,20 @@ export const updateSupervisor = async (req, res) => {
       {
         new: true,
       }
-    );
+    )
+      .populate("siteId") // populate specific fields
+      // .populate("projectId")
+      .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
-    return sendSuccess(res, supervisor, "Supervisor updated successfully");
+    return sendSuccess(res, "Supervisor updated successfully", supervisor, 200);
   } catch (err) {
-    return sendError(res, err.message);
+    return sendError(res, err.message, 500, err.message);
   }
 };
 
 // ➤ Delete Supervisor
 export const deleteSupervisor = async (req, res) => {
-  if (req?.params?.id) {
+  if (!req?.params?.id) {
     return sendError(res, "Id not found/Invalid", 404, "Id not found/Invalid");
   }
   try {
