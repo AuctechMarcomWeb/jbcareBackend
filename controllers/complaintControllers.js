@@ -377,40 +377,31 @@ export const getAllComplaints = async (req, res) => {
   }
 };
 
-/**
- * ❌ DELETE - Remove a complaint (Admin/Supervisor Only)
- */
+// 🧩 Delete Complaint
 export const deleteComplaint = async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId, userRole } = req.body; // Include these in request body
 
-    // if (!userId) return sendError(res, "User ID is required", 400);
-    // if (!userRole) return sendError(res, "User role is required", 400);
-
-    // ✅ Only Admin or Supervisor can delete
-    if (!["Admin", "Supervisor"].includes(userRole)) {
-      return sendError(res, "Unauthorized to delete complaints", 403);
+    // 🔹 Validate ID
+    if (!id) {
+      return sendError(res, "Complaint ID is required", 400);
     }
 
-    const complaint = await Complaint.findById(id);
-    if (!complaint) return sendError(res, "Complaint not found", 404);
+    // 🔹 Find and delete complaint
+    const deletedComplaint = await Complaint.findByIdAndDelete(id);
 
-    await Complaint.findByIdAndDelete(id);
+    if (!deletedComplaint) {
+      return sendError(res, "Complaint not found", 404);
+    }
 
-    return sendSuccess(
-      res,
-      "Complaint deleted successfully",
-      {
-        deletedComplaintId: id,
-        // deletedBy: { userId, userRole },
-      },
-      200
-    );
+    // ✅ Return success
+    return sendSuccess(res, "Complaint deleted successfully", deletedComplaint);
   } catch (error) {
+    console.error("❌ Delete Complaint Error:", error);
     return sendError(res, "Failed to delete complaint", 500, error.message);
   }
 };
+
 
 /**
  * 📋 Get Complaints by User ID or Complaint ID

@@ -42,7 +42,7 @@ export const createSite = async (req, res) => {
   }
 };
 
-// ✅ Get All Sites (with search, pagination, date range, and sort order)
+// ✅ Get All Sites (with search, pagination, date range, sort order, and status filter)
 export const getAllSites = async (req, res) => {
   try {
     const {
@@ -53,15 +53,23 @@ export const getAllSites = async (req, res) => {
       isPagination = "true",
       page = 1,
       limit = 10,
+      status, // ✅ NEW: Accept status filter (true/false)
     } = req.query;
 
     const match = {};
+
+    // --- ✅ Status filter (true/false as string)
+    if (status === "true") {
+      match.status = true;
+    } else if (status === "false") {
+      match.status = false;
+    }
 
     // --- Normalize pagination
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.max(1, parseInt(limit) || 10);
 
-    // --- Search filter (correct fields)
+    // --- Search filter
     const searchTerm =
       typeof search === "string" &&
       search.trim() !== "" &&
@@ -88,7 +96,7 @@ export const getAllSites = async (req, res) => {
       }
     }
 
-    // --- Sort order (latest first by default)
+    // --- Sort order
     const sortOrder = order === "asc" ? 1 : -1;
 
     // --- Build query

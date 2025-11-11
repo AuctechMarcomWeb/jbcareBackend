@@ -3,6 +3,7 @@ import {
   createBilling,
   deleteAllBillings,
   deleteBilling,
+  generateMonthlyBills,
   getAllBillings,
   getAllLandlordsBillingSummary,
   getBillingById,
@@ -18,5 +19,6 @@ router.get("/:id", getBillingById); // Read one
 router.put("/:id", updateBilling); // Update
 router.delete("/:id", deleteBilling); // Delete one
 router.delete("/", deleteAllBillings); // Delete all (optional)
+router.post("/generate-monthly", generateMonthlyBills);
 
 export default router;
