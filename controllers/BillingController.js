@@ -308,3 +308,196 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
     });
   }
 };
+
+export const generateMonthlyBills = async (req, res) => {
+  try {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+    const fromDate = new Date(Date.UTC(currentYear, currentMonth, 1, 0, 0, 0));
+    const toDate = new Date(
+      Date.UTC(currentYear, currentMonth, daysInMonth, 23, 59, 59)
+    );
+
+    const landlords = await Landlord.find({ isActive: true }).populate(
+      "unitIds"
+    );
+
+    if (!landlords.length) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No active landlords found." });
+    }
+
+    let summary = [];
+
+    for (const landlord of landlords) {
+      if (!landlord.unitIds || landlord.unitIds.length === 0) continue;
+
+      const landlordSummary = {
+        landlordId: landlord._id,
+        landlordName: landlord.name,
+        totalMaintenance: 0,
+        totalElectricity: 0,
+        totalGST: 0,
+        totalBillingAmount: 0,
+        perDayMaintenance: 0,
+        monthDays: daysInMonth,
+        billingTillToday: 0,
+        previousUnpaidBill: 0,
+        paidCount: 0,
+        unpaidCount: 0,
+        fromDate,
+        toDate: now,
+      };
+
+      // ✅ 1. Get previous unpaid bills
+      const previousUnpaid = await Billing.find({
+        landlordId: landlord._id,
+        status: "Unpaid",
+        toDate: { $lt: fromDate },
+      });
+
+      landlordSummary.previousUnpaidBill = previousUnpaid.reduce(
+        (sum, b) => sum + Number(b.totalAmount || 0),
+        0
+      );
+
+      // ✅ 2. Loop units
+      for (const unitId of landlord.unitIds) {
+        const unit = await Unit.findById(unitId);
+        if (!unit) {
+          console.log(`⚠️ Unit not found for ID ${unitId}`);
+          continue;
+        }
+
+        const siteId = unit.siteId;
+        const maintainCharge = await MaintainCharges.findOne({
+          siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        if (!maintainCharge) {
+          console.log(
+            `⚠️ No active maintainCharge found for unit ${unit.unitNumber}`
+          );
+          continue;
+        }
+
+        console.log(
+          `✅ Found maintainCharge for ${unit.unitNumber}:`,
+          maintainCharge.rateValue
+        );
+
+        // ✅ Convert to numbers safely
+        const rateValue = Number(maintainCharge.rateValue || 0);
+        const gstPercent = Number(maintainCharge.gstPercent || 0);
+        const area = Number(unit.areaSqFt || 0);
+
+        // ✅ Calculate maintenance
+        let maintenance = 0;
+        if (maintainCharge.rateType === "per_sqft") {
+          maintenance = area * rateValue;
+        } else {
+          maintenance = rateValue;
+        }
+
+        // ✅ GST & total
+        const gstAmount = (maintenance * gstPercent) / 100;
+        const electricity = 1; // you can replace this later
+        const totalAmount = maintenance + gstAmount + electricity;
+
+        // ✅ Check existing bill
+        const existingBill = await Billing.findOne({
+          landlordId: landlord._id,
+          unitId: unit._id,
+          fromDate: { $gte: fromDate, $lte: toDate },
+        });
+        console.log("DEBUG → existingBill:", existingBill);
+        console.log("DEBUG → previousBills:", previousUnpaid);
+
+        if (!existingBill) {
+          await Billing.create({
+            landlordId: landlord._id,
+            siteId,
+            unitId: unit._id,
+            fromDate,
+            toDate,
+            maintenanceAmount: maintenance.toFixed(2),
+            electricityAmount: electricity.toFixed(2),
+            gstAmount: gstAmount.toFixed(2),
+            totalAmount: totalAmount.toFixed(2),
+            status: "Unpaid",
+          });
+        }
+
+        landlordSummary.totalMaintenance += maintenance;
+        landlordSummary.totalGST += gstAmount;
+        landlordSummary.totalElectricity += electricity;
+        landlordSummary.totalBillingAmount += totalAmount;
+      }
+
+      // ✅ Compute per day and till today billing
+      landlordSummary.perDayMaintenance = (
+        landlordSummary.totalMaintenance / daysInMonth
+      ).toFixed(2);
+
+      const today = now.getDate();
+      landlordSummary.billingTillToday = (
+        Number(landlordSummary.perDayMaintenance) * today
+      ).toFixed(2);
+
+      // ✅ Paid/unpaid counts
+      const bills = await Billing.find({ landlordId: landlord._id });
+      landlordSummary.paidCount = bills.filter(
+        (b) => b?.status === "Paid"
+      ).length;
+      landlordSummary.unpaidCount = bills.filter(
+        (b) => b?.status === "Unpaid"
+      ).length;
+
+      // ✅ Fix final formatting
+      landlordSummary.totalMaintenance =
+        landlordSummary.totalMaintenance.toFixed(2);
+      landlordSummary.totalElectricity =
+        landlordSummary.totalElectricity.toFixed(2);
+      landlordSummary.totalGST = landlordSummary.totalGST.toFixed(2);
+      landlordSummary.totalBillingAmount =
+        landlordSummary.totalBillingAmount.toFixed(2);
+      landlordSummary.previousUnpaidBill =
+        landlordSummary.previousUnpaidBill.toFixed(2);
+
+      summary.push(landlordSummary);
+    }
+
+    if (res) {
+      return res.status(200).json({
+        success: true,
+        message: "Monthly bills generated successfully",
+        count: summary.length,
+        data: summary,
+      });
+    } else {
+      console.log("✅ Monthly bills generated successfully", summary.length);
+      return {
+        success: true,
+        count: summary.length,
+        data: summary,
+      };
+    }
+  } catch (error) {
+    console.error("❌ generateMonthlyBills Error:", error);
+    if (res) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to generate monthly bills",
+        error: error.message,
+      });
+    } else {
+      return { success: false, message: "Failed", error: error.message };
+    }
+  }
+};

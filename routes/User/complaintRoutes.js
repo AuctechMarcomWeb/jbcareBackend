@@ -29,4 +29,7 @@ router.get("/user/:userId", getComplaintsByUserOrId);
 // 🔹 Get a single complaint by its ID
 router.get("/:complaintId", getComplaintsByUserOrId);
 
+// 🗑️ Delete complaint by ID
+router.delete("/complaints/:id", deleteComplaint);
+
 export default router;

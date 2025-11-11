@@ -1,4 +1,5 @@
 import MaintainCharges from "../models/MantainCharge.modal.js";
+import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js"; // optional utility handlers
 
 /**
@@ -191,5 +192,95 @@ export const deleteMaintainCharge = async (req, res) => {
   } catch (error) {
     console.error("Delete Maintain Charge Error:", error);
     return sendError(res, error.message);
+  }
+};
+
+export const createUserMaintainCharges = async (req, res) => {
+  try {
+    const {
+      rateType = "fixed",
+      rateValue = 100,
+      gstPercent = 18,
+      description = "User-defined dummy maintenance charge",
+      overwriteExisting = false, // 🔹 New flag
+    } = req.body;
+
+    // ✅ Validation
+    if (!rateValue || isNaN(rateValue)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a valid rateValue (number).",
+      });
+    }
+
+    // ✅ Fetch all units
+    const allUnits = await Unit.find({});
+    if (!allUnits.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No units found in the database.",
+      });
+    }
+
+    let createdCount = 0;
+    let skippedCount = 0;
+    let updatedCount = 0;
+    let createdCharges = [];
+
+    for (const unit of allUnits) {
+      const existing = await MaintainCharges.findOne({
+        unitId: unit._id,
+        isActive: true,
+      });
+
+      // ✅ If overwriteExisting = true → update even existing ones
+      if (existing && overwriteExisting) {
+        existing.rateType = rateType;
+        existing.rateValue = rateValue;
+        existing.gstPercent = gstPercent;
+        existing.description = description;
+        await existing.save();
+        updatedCount++;
+        continue;
+      }
+
+      // ✅ If overwriteExisting = false → skip existing
+      if (existing && !overwriteExisting) {
+        skippedCount++;
+        continue;
+      }
+
+      // ✅ Create new dummy charge
+      const newCharge = await MaintainCharges.create({
+        rateType,
+        rateValue,
+        gstPercent,
+        isActive: true,
+        description,
+        siteId: unit.siteId,
+        unitId: unit._id,
+      });
+
+      createdCharges.push(newCharge);
+      createdCount++;
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: overwriteExisting
+        ? `✅ Overwritten existing charges for ${updatedCount} unit(s). Created ${createdCount} new charges.`
+        : `✅ Maintenance charges created for ${createdCount} unit(s). Skipped ${skippedCount} (already had charges).`,
+      createdCount,
+      updatedCount,
+      skippedCount,
+      data: createdCharges,
+    });
+  } catch (error) {
+    console.error("❌ createUserMaintainCharges Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create or update maintenance charges.",
+      error: error.message,
+    });
   }
 };

@@ -15,8 +15,10 @@ export const addLandlord = async (req, res) => {
       address,
       profilePic,
       siteId,
-      projectId,
       unitIds = [],
+      isActive = true,
+      ownershipstartDate,
+      ownershipEndDate
     } = req.body;
 
     // 🧩 Validation
@@ -51,7 +53,9 @@ export const addLandlord = async (req, res) => {
       siteId,
       // projectId,
       unitIds,
-      isActive: true,
+      isActive,
+      ownershipstartDate,
+      ownershipEndDate,
       createdBy: req.user?._id || null,
     });
 
