@@ -322,6 +322,7 @@ export const getAllComplaints = async (req, res) => {
       siteId,
       projectId,
       addedBy,
+      userId,
       isPagination = "true",
       page = 1,
       limit = 10,
@@ -333,6 +334,8 @@ export const getAllComplaints = async (req, res) => {
     if (siteId) match.siteId = siteId;
     // if (projectId) match.projectId = projectId;
     if (addedBy) match.addedBy = addedBy;
+
+     if (userId) match.userId = userId;
 
     if (search?.trim()) {
       const regex = new RegExp(search.trim(), "i");
