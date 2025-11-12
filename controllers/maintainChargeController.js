@@ -38,7 +38,7 @@ export const createMaintainCharge = async (req, res) => {
 };
 
 /**
- * 🟡 READ / GET All Maintenance Charges
+ * 🟡 READ / GET All Maintenance Charges (Global Search)
  */
 export const getAllMaintainCharges = async (req, res) => {
   try {
@@ -66,41 +66,45 @@ export const getAllMaintainCharges = async (req, res) => {
     // 🔹 Date filter (effectiveFrom)
     if (fromDate || toDate) {
       const dateFilter = {};
-      if (fromDate) {
-        // Start of day
+      if (fromDate)
         dateFilter.$gte = new Date(new Date(fromDate).setHours(0, 0, 0, 0));
-      }
-      if (toDate) {
-        // End of day
+      if (toDate)
         dateFilter.$lte = new Date(new Date(toDate).setHours(23, 59, 59, 999));
-      }
       filters.effectiveFrom = dateFilter;
     }
-
-    // 🔹 Search setup
-    const searchRegex = new RegExp(search, "i");
 
     // 🔹 Sorting
     const sortOrder = order === "asc" ? 1 : -1;
     const sortOptions = { [sortBy]: sortOrder };
 
-    // 🔹 Query with populate
-    const charges = await MaintainCharges.find(filters)
+    // 🔹 Base query (populate)
+    let query = MaintainCharges.find(filters)
       .populate("siteId", "siteName")
       .populate("unitId", "unitNumber")
       .sort(sortOptions);
 
-    // 🔹 Manual search (populate fields)
+    const charges = await query.exec();
+
+    // ✅ Global search (in memory, but efficient on limited populated fields)
+    const searchRegex = new RegExp(search, "i");
+
     const searchedCharges = search
-      ? charges.filter(
-          (item) =>
-            item?.siteId?.name?.match(searchRegex) ||
-            item?.unitId?.name?.match(searchRegex) ||
-            item?.rateType?.match(searchRegex)
-        )
+      ? charges.filter((item) => {
+          const siteName = item?.siteId?.siteName || "";
+          const unitNumber = item?.unitId?.unitNumber || "";
+          const rateType = item?.rateType || "";
+          const description = item?.description || "";
+
+          return (
+            siteName.match(searchRegex) ||
+            unitNumber.match(searchRegex) ||
+            rateType.match(searchRegex) ||
+            description.match(searchRegex)
+          );
+        })
       : charges;
 
-    // 🔹 Pagination logic
+    // 🔹 Pagination
     const total = searchedCharges.length;
     let paginatedData = searchedCharges;
 
