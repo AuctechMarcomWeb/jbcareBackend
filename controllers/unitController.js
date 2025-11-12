@@ -33,10 +33,10 @@ export const createUnit = async (req, res) => {
     // if (!projectId) return sendError(res, "projectId is required", 400);
     if (!unitTypeId) return sendError(res, "unitTypeId is required", 400);
 
-    // 🔍 Check duplicate unitNumber
-    const existing = await Unit.findOne({ unitNumber: unitNumber.trim() });
-    if (existing)
-      return sendError(res, "Unit with this unitNumber already exists", 400);
+    // // 🔍 Check duplicate unitNumber
+    // const existing = await Unit.findOne({ unitNumber: unitNumber.trim() });
+    // if (existing)
+    //   return sendError(res, "Unit with this unitNumber already exists", 400);
 
     const unit = await Unit.create({
       unitNumber: unitNumber.trim(),
