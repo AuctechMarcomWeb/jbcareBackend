@@ -10,15 +10,26 @@ export const addLandlord = async (req, res) => {
   try {
     const {
       name,
+      fatherOrSpouseName,
+      gender,
+      dob,
       phone,
+      alternateMobileNumber,
       email,
       address,
+      coorespondenceAddress,
       profilePic,
+      idProof, // { type, number, documentUrl }
       siteId,
       unitIds = [],
+      propertyDetails, // { propertyName, propertyType, propertyAddress, propertyDocumentsUrl }
+      bankDetails, // { accountHolderName, bankName, accountNumber, ifscCode, branchAddress }
+      emergencyContactName,
+      emergencyContactNumber,
+      notes,
       isActive = true,
       ownershipstartDate,
-      ownershipEndDate
+      ownershipEndDate,
     } = req.body;
 
     // 🧩 Validation
@@ -46,7 +57,11 @@ export const addLandlord = async (req, res) => {
     // 🏗️ Create new active landlord
     const landlord = await Landlord.create({
       name,
+      fatherOrSpouseName,
+      gender,
+      dob,
       phone,
+      alternateMobileNumber,
       email,
       address,
       profilePic,
