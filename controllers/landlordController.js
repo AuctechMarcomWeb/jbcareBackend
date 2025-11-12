@@ -27,6 +27,7 @@ export const addLandlord = async (req, res) => {
       emergencyContactName,
       emergencyContactNumber,
       notes,
+      walletBalance = 0,
       isActive = true,
       ownershipstartDate,
       ownershipEndDate,
@@ -63,11 +64,17 @@ export const addLandlord = async (req, res) => {
       phone,
       alternateMobileNumber,
       email,
-      address,
+      coorespondenceAddress,
       profilePic,
+      idProof, // { type, number, documentUrl }
       siteId,
-      // projectId,
       unitIds,
+      propertyDetails, // { propertyName, propertyType, propertyAddress, propertyDocumentsUrl }
+      bankDetails, // { accountHolderName, bankName, accountNumber, ifscCode, branchAddress }
+      emergencyContactName,
+      emergencyContactNumber,
+      notes,
+      walletBalance,
       isActive,
       ownershipstartDate,
       ownershipEndDate,
