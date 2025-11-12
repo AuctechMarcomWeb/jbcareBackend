@@ -20,6 +20,9 @@ export const addTenant = async (req, res) => {
       landlordId,
       addedBy,
       billTo,
+      gender,
+      dob,
+      idProof,
       isActive = true, // Default to true
     } = req.body;
 
@@ -28,10 +31,8 @@ export const addTenant = async (req, res) => {
     if (!name) missingFields.push("name");
     if (!phone) missingFields.push("phone");
     if (!siteId) missingFields.push("siteId");
-    // if (!projectId) missingFields.push("projectId");
     if (!unitId) missingFields.push("unitId");
     if (!landlordId) missingFields.push("landlordId");
-    if (!addedBy) missingFields.push("addedBy");
 
     if (missingFields.length)
       return sendError(
@@ -80,6 +81,9 @@ export const addTenant = async (req, res) => {
       landlordId,
       addedBy,
       billTo,
+      gender,
+      dob,
+      idProof,
       isActive,
       tenancyStartDate: new Date(),
     });
@@ -225,7 +229,7 @@ export const updateTenant = async (req, res) => {
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) return sendError(res, "Tenant not found.", 404);
 
-    const { isActive, ...updates } = req.body;
+    const { isActive, gender, idProof, dob, ...updates } = req.body;
 
     const unit = await Unit.findById(tenant.unitId);
     if (!unit) return sendError(res, "Unit not found.", 404);
