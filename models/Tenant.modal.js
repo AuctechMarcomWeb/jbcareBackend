@@ -41,6 +41,23 @@ const tenantSchema = new mongoose.Schema(
       default: "tenant",
     },
 
+    // ✅ NEW FIELDS
+    gender: {
+      type: String,
+      enum: ["Male", "Female", "Other"],
+      default: "Male",
+    },
+    dob: { type: Date },
+
+    idProof: {
+      type: {
+        type: String,
+        enum: ["Aadhaar", "PAN", "Passport", "Driving License", "Other"],
+      },
+      number: { type: String, trim: true },
+      documentUrl: { type: String }, // optional image/pdf link
+    },
+
     isActive: { type: Boolean, default: true },
     tenancyStartDate: { type: Date, default: Date.now },
     tenancyEndDate: { type: Date },

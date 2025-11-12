@@ -177,20 +177,6 @@ export const updateUnit = async (req, res) => {
       return sendError(res, "unitNumber must be a non-empty string", 400);
     }
 
-    // 🔍 Check duplicate if updating unitNumber
-    if (unitNumber) {
-      const existing = await Unit.findOne({
-        _id: { $ne: req.params.id },
-        unitNumber: unitNumber.trim(),
-      });
-      if (existing)
-        return sendError(
-          res,
-          "Another Unit with this unitNumber already exists",
-          400
-        );
-    }
-
     const unit = await Unit.findByIdAndUpdate(
       req.params.id,
       {
