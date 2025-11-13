@@ -2,6 +2,7 @@ import express from "express";
 import {
   createMaintainCharge,
   createUserMaintainCharges,
+  deleteFixedChargeById,
   deleteMaintainCharge,
   getAllMaintainCharges,
   getFixedCharges,
@@ -21,5 +22,6 @@ router.post("/min-fix-charges", createUserMaintainCharges);
 router.put("/update-min-fix-charges/:id", updateFixedChargeById);
 router.get("/get-min-fix-charges", getFixedCharges)
 router.get("/:id", getMaintainChargeById); // 🔍 Get single
+router.delete("/fixed-charges/:id", deleteFixedChargeById);
 
 export default router;
