@@ -1,5 +1,6 @@
 import MaintainCharges from "../models/MantainCharge.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
+import FixedCharges from "../models/utilsSchemas/FixedCharges.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js"; // optional utility handlers
 
 /**
@@ -20,17 +21,35 @@ export const createMaintainCharge = async (req, res) => {
     if (!siteId || !unitId || !rateValue)
       return sendError(res, "siteId, unitId and rateValue are required");
 
-    const newCharge = await MaintainCharges.create({
-      siteId,
-      unitId,
-      rateType,
-      rateValue,
-      gstPercent,
-      effectiveFrom,
-      isActive,
-    });
+    // 🔍 Check if maintenance charge already exists for this site + unit
+    const existingCharge = await MaintainCharges.findOne({ siteId, unitId });
 
-    return sendSuccess(res, "Maintenance charge added successfully", newCharge);
+    let result;
+    if (existingCharge) {
+      // 🔁 Update existing charge
+      existingCharge.rateType = rateType ?? existingCharge.rateType;
+      existingCharge.rateValue = rateValue;
+      existingCharge.gstPercent = gstPercent ?? existingCharge.gstPercent;
+      existingCharge.effectiveFrom =
+        effectiveFrom ?? existingCharge.effectiveFrom;
+      existingCharge.isActive = isActive ?? existingCharge.isActive;
+      await existingCharge.save();
+
+      result = existingCharge;
+    } else {
+      // 🆕 Create new charge
+      result = await MaintainCharges.create({
+        siteId,
+        unitId,
+        rateType,
+        rateValue,
+        gstPercent,
+        effectiveFrom,
+        isActive,
+      });
+    }
+
+    return sendSuccess(res, "Maintenance charge added successfully", result, 200);
   } catch (error) {
     console.error("Create Maintain Charge Error:", error);
     return sendError(res, error.message);
@@ -217,6 +236,24 @@ export const createUserMaintainCharges = async (req, res) => {
       });
     }
 
+    // ✅ Save fixed charge globally (always store or update the latest one)
+    let fixedCharge = await FixedCharges.findOne({});
+    if (fixedCharge) {
+      fixedCharge.rateType = rateType;
+      fixedCharge.rateValue = rateValue;
+      fixedCharge.gstPercent = gstPercent;
+      fixedCharge.description = description;
+      fixedCharge.overwriteExisting = overwriteExisting;
+      await fixedCharge.save();
+    } else {
+      fixedCharge = await FixedCharges.create({
+        rateType,
+        rateValue,
+        gstPercent,
+        description,
+        overwriteExisting,
+      });
+    }
     // ✅ Fetch all units
     const allUnits = await Unit.find({});
     if (!allUnits.length) {
@@ -277,6 +314,7 @@ export const createUserMaintainCharges = async (req, res) => {
       createdCount,
       updatedCount,
       skippedCount,
+      fixedCharge,
       data: createdCharges,
     });
   } catch (error) {
@@ -284,6 +322,143 @@ export const createUserMaintainCharges = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to create or update maintenance charges.",
+      error: error.message,
+    });
+  }
+};
+
+// ✅ GET all fixed charges
+export const getFixedCharges = async (req, res) => {
+  try {
+    const charges = await FixedCharges.find({});
+
+    if (!charges.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No fixed charges found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: charges.length,
+      message: "Fixed charges fetched successfully.",
+      data: charges,
+    });
+  } catch (error) {
+    console.error("❌ getFixedCharges Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch fixed charges.",
+      error: error.message,
+    });
+  }
+};
+
+export const updateFixedChargeById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      rateType,
+      rateValue,
+      gstPercent,
+      description,
+      overwriteExisting = false,
+    } = req.body;
+
+    // ✅ Validate rateValue
+    if (rateValue && isNaN(rateValue)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a valid rateValue (number).",
+      });
+    }
+
+    // ✅ Find and update the FixedCharge
+    const fixedCharge = await FixedCharges.findById(id);
+    if (!fixedCharge) {
+      return res.status(404).json({
+        success: false,
+        message: "Fixed charge not found.",
+      });
+    }
+
+    // Update fixed charge fields
+    fixedCharge.rateType = rateType || fixedCharge.rateType;
+    fixedCharge.rateValue = rateValue ?? fixedCharge.rateValue;
+    fixedCharge.gstPercent = gstPercent ?? fixedCharge.gstPercent;
+    fixedCharge.description = description || fixedCharge.description;
+    fixedCharge.overwriteExisting = overwriteExisting;
+    await fixedCharge.save();
+
+    // ✅ Apply updated fixed charge to all units (like in createUserMaintainCharges)
+    const allUnits = await Unit.find({});
+    if (!allUnits.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No units found in the database.",
+      });
+    }
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    let affectedCharges = [];
+
+    for (const unit of allUnits) {
+      const existing = await MaintainCharges.findOne({
+        unitId: unit._id,
+        isActive: true,
+      });
+
+      // ✅ If overwriteExisting = true → update all active records
+      if (existing && overwriteExisting) {
+        existing.rateType = fixedCharge.rateType;
+        existing.rateValue = fixedCharge.rateValue;
+        existing.gstPercent = fixedCharge.gstPercent;
+        existing.description = fixedCharge.description;
+        await existing.save();
+        updatedCount++;
+        continue;
+      }
+
+      // ✅ Skip if already exists and overwrite is false
+      if (existing && !overwriteExisting) {
+        skippedCount++;
+        continue;
+      }
+
+      // ✅ Otherwise create new charge entry
+      const newCharge = await MaintainCharges.create({
+        rateType: fixedCharge.rateType,
+        rateValue: fixedCharge.rateValue,
+        gstPercent: fixedCharge.gstPercent,
+        isActive: true,
+        description: fixedCharge.description,
+        siteId: unit.siteId,
+        unitId: unit._id,
+      });
+
+      affectedCharges.push(newCharge);
+      createdCount++;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: overwriteExisting
+        ? `✅ Updated Fixed Charge and overwritten existing charges for ${updatedCount} unit(s).`
+        : `✅ Updated Fixed Charge. Created ${createdCount} new charges and skipped ${skippedCount} existing.`,
+      fixedCharge,
+      createdCount,
+      updatedCount,
+      skippedCount,
+      data: affectedCharges,
+    });
+  } catch (error) {
+    console.error("❌ updateFixedChargeById Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update fixed charge.",
       error: error.message,
     });
   }
