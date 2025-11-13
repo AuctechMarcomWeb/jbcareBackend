@@ -4,6 +4,7 @@ import Tenant from "../models/Tenant.modal.js";
 import Landlord from "../models/LandLord.modal.js";
 
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
+import mongoose from "mongoose";
 
 // Create user (admin only) - alternative to register route
 export const createUser = async (req, res) => {
@@ -49,6 +50,7 @@ export const getUsers = async (req, res) => {
       phone,
       email,
       siteId,
+      unitId,
       projectId,
       createdBy,
       isActive,
@@ -66,7 +68,8 @@ export const getUsers = async (req, res) => {
     if (name) query.name = { $regex: name, $options: "i" };
     if (phone) query.phone = { $regex: phone, $options: "i" };
     if (email) query.email = { $regex: email, $options: "i" };
-    if (siteId) query.siteId = siteId;
+    if (siteId) query.siteId = new mongoose.Types.ObjectId(siteId);
+    if (unitId) query.unitId = new mongoose.Types.ObjectId(unitId);
     if (projectId) query.projectId = projectId;
     if (createdBy) query.createdBy = createdBy;
     if (isActive !== undefined) query.isActive = isActive === "true";
