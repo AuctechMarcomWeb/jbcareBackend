@@ -285,9 +285,22 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
         Math.floor((now - firstDay) / (1000 * 60 * 60 * 24)) + 1;
       const billingTillToday = activeDays * perDayMaintenance;
 
+      // before pushing into summary array
+      const siteNames = filteredUnits
+        .map((u) => u?.siteId?.siteName)
+        .filter(Boolean)
+        .join(", ");
+
+      const unitNumbers = filteredUnits
+        .map((u) => u?.unitNumber)
+        .filter(Boolean)
+        .join(", ");
+
       summary.push({
         landlordId: landlord._id,
         landlordName: landlord.name,
+        siteNames:siteNames,
+        unitNumbers:unitNumbers,
         totalMaintenance: totalMaintenance.toFixed(2),
         totalElectricity: totalElectricity.toFixed(2),
         totalGST: totalGST.toFixed(2),
