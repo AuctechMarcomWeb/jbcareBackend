@@ -41,7 +41,7 @@ export const getAllBillings = async (req, res) => {
     const total = await Billing.countDocuments(filters);
     const bills = await Billing.find(filters)
       .populate("landlordId siteId unitId")
-      .sort({ generatedOn: -1 })
+      .sort({ fromDate: -1 })
       .skip(skip)
       .limit(lim);
 
