@@ -7,7 +7,6 @@ const landlordSchema = new mongoose.Schema(
     gender: {
       type: String,
       enum: ["Male", "Female", "Other"],
-      required: true,
     },
     dob: { type: Date },
     phone: { type: String, required: true },
