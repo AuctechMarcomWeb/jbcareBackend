@@ -62,6 +62,7 @@ export const addLandlord = async (req, res) => {
       gender,
       dob,
       phone,
+      address,
       alternateMobileNumber,
       email,
       coorespondenceAddress,
