@@ -49,7 +49,12 @@ export const createMaintainCharge = async (req, res) => {
       });
     }
 
-    return sendSuccess(res, "Maintenance charge added successfully", result, 200);
+    return sendSuccess(
+      res,
+      "Maintenance charge added successfully",
+      result,
+      200
+    );
   } catch (error) {
     console.error("Create Maintain Charge Error:", error);
     return sendError(res, error.message);
@@ -459,6 +464,42 @@ export const updateFixedChargeById = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update fixed charge.",
+      error: error.message,
+    });
+  }
+};
+
+// ✅ DELETE Fixed Charge by ID
+export const deleteFixedChargeById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Fixed charge ID is required.",
+      });
+    }
+
+    const deleted = await FixedCharges.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Fixed charge not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Fixed charge deleted successfully.",
+      data: deleted,
+    });
+  } catch (error) {
+    console.error("❌ deleteFixedChargeById Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete fixed charge.",
       error: error.message,
     });
   }
