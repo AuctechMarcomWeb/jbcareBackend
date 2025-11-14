@@ -99,7 +99,7 @@ export const getSupervisors = async (req, res) => {
   try {
     const {
       siteId,
-      projectId,
+      // projectId,
       unitId,
       name,
       phone,
@@ -113,78 +113,72 @@ export const getSupervisors = async (req, res) => {
 
     const filters = {};
 
-    // ✅ Apply ObjectId-based filters safely
+    // --- REUSABLE FUNCTION ---
     const addObjectIdFilter = (key, value) => {
       if (value && mongoose.Types.ObjectId.isValid(value)) {
-        filters[key] = new mongoose.Types.ObjectId(value);
-      } else if (value) {
-        console.warn(`⚠️ Invalid ObjectId for ${key}:`, value);
+        filters[key] = value;
       }
     };
 
     addObjectIdFilter("siteId", siteId);
-    addObjectIdFilter("projectId", projectId);
+    // addObjectIdFilter("projectId", projectId);
     addObjectIdFilter("unitId", unitId);
 
-    // ✅ String filters (case-insensitive)
-    if (name && name.trim() !== "") {
-      filters.name = { $regex: name.trim(), $options: "i" };
+    if (name) {
+      filters.name = { $regex: name, $options: "i" };
     }
 
-    if (phone && phone.trim() !== "") {
-      filters.phone = { $regex: phone.trim(), $options: "i" };
+    if (phone) {
+      filters.phone = { $regex: phone, $options: "i" };
     }
 
-    // ✅ Boolean filter (supports true/false/1/0)
-    if (isActive !== undefined && isActive !== "") {
-      filters.isActive = ["true", "1", true, 1].includes(isActive);
+    if (isActive !== undefined) {
+      filters.isActive = isActive === "true" || isActive === "1";
     }
 
-    console.log("🧩 Applied Filters =>", JSON.stringify(filters, null, 2));
+    console.log("APPLIED FILTERS:", filters);
 
-    // ✅ Sorting
     const sortOrder = order === "asc" ? 1 : -1;
     const sortConfig = { [sortBy]: sortOrder };
 
-    // ✅ Pagination handling
     let supervisors, total;
+
     if (isPagination === "true") {
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const skip = (page - 1) * limit;
       total = await Supervisor.countDocuments(filters);
 
       supervisors = await Supervisor.find(filters)
-        .populate("siteId", "siteName") // only pick useful fields
+        .populate("siteId", "siteName")
         // .populate("projectId", "projectName")
         .populate("unitId", "unitNumber")
         .sort(sortConfig)
         .skip(skip)
-        .limit(parseInt(limit));
+        .limit(Number(limit));
 
       return sendSuccess(res, "Supervisors fetched successfully", {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        supervisors,
-      });
-    } else {
-      supervisors = await Supervisor.find(filters)
-        .populate("siteId", "name")
-        // .populate("projectId", "name")
-        .populate("unitId", "name")
-        .sort(sortConfig);
-
-      total = supervisors.length;
-
-      return sendSuccess(res, "Supervisors fetched successfully", {
-        total,
+        page: Number(page),
+        limit: Number(limit),
         supervisors,
       });
     }
+
+    supervisors = await Supervisor.find(filters)
+      .populate("siteId", "siteName")
+      // .populate("projectId", "projectName")
+      .populate("unitId", "unitNumber")
+      .sort(sortConfig);
+
+    return sendSuccess(res, "Supervisors fetched successfully", {
+      total: supervisors.length,
+      supervisors,
+    });
   } catch (err) {
     console.error("❌ Error in getSupervisors:", err);
     return sendError(res, err.message || "Server Error");
   }
 };
+
 
 // ➤ Get Supervisor by ID
 export const getSupervisorById = async (req, res) => {
