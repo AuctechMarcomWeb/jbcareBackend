@@ -426,7 +426,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
     } = req.query;
 
     if (!userId && !complaintId)
-      return sendError(res, "Please provide either userId or complaintId", 400);
+      return sendSuccess(res, "Please provide either userId or complaintId", 400);
 
     let match = {};
 
