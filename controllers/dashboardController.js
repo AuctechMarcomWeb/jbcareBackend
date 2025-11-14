@@ -34,11 +34,11 @@ export const getDashboardStats = async (req, res) => {
     const totalComplaints = await Complaint.countDocuments();
 
     const totalResolvedComplaints = await Complaint.countDocuments({
-      status: "resolved",
+      status: "Resolved",
     });
 
     const totalClosedComplaints = await Complaint.countDocuments({
-      status: "closed",
+      status: "Closed",
     });
 
     // ----------------------------------------------------
