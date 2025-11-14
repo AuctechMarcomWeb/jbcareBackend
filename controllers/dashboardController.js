@@ -1,6 +1,7 @@
 import Unit from "../models/masters/Unit.modal.js";
 import Billing from "../models/Billing.modal.js";
 import User from "../models/User.modal.js";
+import Complaint from "../models/Complaints.modal.js"; // <-- Add this
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -28,23 +29,32 @@ export const getDashboardStats = async (req, res) => {
     });
 
     // ----------------------------------------------------
+    // 🔥 COMPLAINT STATS
+    // ----------------------------------------------------
+    const totalComplaints = await Complaint.countDocuments();
+
+    const totalResolvedComplaints = await Complaint.countDocuments({
+      status: "resolved",
+    });
+
+    const totalClosedComplaints = await Complaint.countDocuments({
+      status: "closed",
+    });
+
+    // ----------------------------------------------------
     // 💰 BILLING STATS (OVERALL)
     // ----------------------------------------------------
-
-    // TOTAL BILLING EVER
     const allBillingAgg = await Billing.aggregate([
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
     const totalBilling = allBillingAgg[0]?.total || 0;
 
-    // TOTAL PAID BILLING (EVER)
     const paidBillingAgg = await Billing.aggregate([
       { $match: { status: "Paid" } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
     const totalPaidBilling = paidBillingAgg[0]?.total || 0;
 
-    // TOTAL UNPAID BILLING (EVER)
     const unpaidBillingAgg = await Billing.aggregate([
       { $match: { status: "Unpaid" } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
@@ -54,19 +64,12 @@ export const getDashboardStats = async (req, res) => {
     // ----------------------------------------------------
     // 💰 BILLING STATS (MONTHLY)
     // ----------------------------------------------------
-
-    // THIS MONTH'S TOTAL BILLING
     const monthlyBillingAgg = await Billing.aggregate([
-      {
-        $match: {
-          generatedOn: { $gte: firstDay, $lte: lastDay },
-        },
-      },
+      { $match: { generatedOn: { $gte: firstDay, $lte: lastDay } } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
     const totalMonthlyBilling = monthlyBillingAgg[0]?.total || 0;
 
-    // THIS MONTH PAID
     const monthlyPaidAgg = await Billing.aggregate([
       {
         $match: {
@@ -78,7 +81,6 @@ export const getDashboardStats = async (req, res) => {
     ]);
     const totalMonthlyBillingPaid = monthlyPaidAgg[0]?.total || 0;
 
-    // THIS MONTH UNPAID
     const monthlyUnpaidAgg = await Billing.aggregate([
       {
         $match: {
@@ -91,26 +93,30 @@ export const getDashboardStats = async (req, res) => {
     const totalMonthlyBillingUnpaid = monthlyUnpaidAgg[0]?.total || 0;
 
     // ----------------------------------------------------
-    // 📊 RESPONSE (READY FOR FRONTEND FORMAT)
+    // 📊 RESPONSE (READY FOR FRONTEND)
     // ----------------------------------------------------
-
     return res.status(200).json({
       success: true,
       data: {
         // USERS
         totalUsers,
 
-        // UNITS
+        // PROPERTIES
         totalUnits,
         soldProperties,
         availableProperties,
 
-        // OVERALL BILLING
+        // COMPLAINTS
+        totalComplaints,
+        totalResolvedComplaints,
+        totalClosedComplaints,
+
+        // BILLING (OVERALL)
         totalBilling,
         totalPaidBilling,
         totalUnpaidBilling,
 
-        // MONTHLY BILLING
+        // BILLING (MONTHLY)
         totalMonthlyBilling,
         totalMonthlyBillingPaid,
         totalMonthlyBillingUnpaid,
