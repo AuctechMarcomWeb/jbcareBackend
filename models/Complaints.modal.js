@@ -68,7 +68,7 @@ const StatusHistorySchema = new Schema(
     status: {
       type: String,
       enum: [
-        "open",
+        "Open",
         "Under Review",
         "Material Demand Raised",
         "WorkinProgress",
@@ -118,7 +118,7 @@ const ComplaintSchema = new Schema(
     status: {
       type: String,
       enum: [
-        "open",
+        "Open",
         "Under Review",
         "Material Demand Raised",
         "WorkinProgress",
@@ -126,7 +126,7 @@ const ComplaintSchema = new Schema(
         "Closed",
         "Repushed",
       ],
-      default: "open",
+      default: "Open",
     },
 
     // 🔹 Full status history
