@@ -143,6 +143,7 @@ export const updateComplaint = async (req, res) => {
     // 🧩 Map action → next status
     const actionStatusMap = {
       review: "Under Review",
+      WorkinProgress: "WorkinProgress",
       raiseMaterialDemand: "Material Demand Raised",
       resolve: "Resolved",
       verifyResolution: "Closed",
@@ -270,7 +271,6 @@ export const updateComplaint = async (req, res) => {
             images: supervisorDetails.images || [],
           };
         } else {
-          // Admin can skip supervisor assignment
           newHistoryEntry.supervisorDetails = {
             supervisorId: null,
             comments: supervisorDetails?.comments || "Reviewed by Admin",
@@ -279,9 +279,6 @@ export const updateComplaint = async (req, res) => {
         }
         break;
 
-      /**
-       * 🏗️ MATERIAL DEMAND STAGE
-       */
       case "raiseMaterialDemand":
         if (!materialDemand)
           return sendError(res, "Material demand details required", 400);
@@ -290,9 +287,6 @@ export const updateComplaint = async (req, res) => {
         newHistoryEntry.materialDemand = materialDemand;
         break;
 
-      /**
-       * 🧰 RESOLUTION STAGE
-       */
       case "resolve":
         if (!resolution)
           return sendError(res, "Resolution details required", 400);
@@ -300,10 +294,14 @@ export const updateComplaint = async (req, res) => {
         newHistoryEntry.status = "Resolved";
         newHistoryEntry.resolution = resolution;
         break;
+      case "WorkinProgress":
+        if (!resolution)
+          return sendError(res, "Resolution details required", 400);
+        newStatus = "WorkinProgress";
+        newHistoryEntry.status = "WorkinProgress";
+        newHistoryEntry.resolution = resolution;
+        break;
 
-      /**
-       * ✅ CLOSURE STAGE (Customer verification)
-       */
       case "verifyResolution":
         if (userRole !== "Admin") {
           if (!closedBy)
@@ -319,9 +317,6 @@ export const updateComplaint = async (req, res) => {
         newHistoryEntry.closureDetails = closureDetails;
         break;
 
-      /**
-       * 🔁 REPUSH STAGE (Customer not satisfied)
-       */
       case "repush":
         newStatus = "Repushed";
         newHistoryEntry.status = "Repushed";
