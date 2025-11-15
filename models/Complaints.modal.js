@@ -39,7 +39,15 @@ const ResolutionSchema = new Schema(
   },
   { _id: false }
 );
-
+const ClosureDetailsSchema = new Schema(
+  {
+    closedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    remarks: { type: String, trim: true },
+    images: [{ type: String }],
+    closedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
 /**
  * 🔹 Sub-schema for repush details
  */
@@ -77,8 +85,9 @@ const StatusHistorySchema = new Schema(
     supervisorDetails: SupervisorDetailsSchema,
     materialDemand: MaterialDemandSchema,
     resolution: ResolutionSchema,
-    closedBy: { type: Schema.Types.ObjectId, ref: "User" },
-    closedImages: [{ type: String }],
+    closureDetails: ClosureDetailsSchema,
+    // closedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    // closedImages: [{ type: String }],
     repushedDetails: RepushedDetailsSchema,
     updatedAt: { type: Date, default: Date.now },
   },

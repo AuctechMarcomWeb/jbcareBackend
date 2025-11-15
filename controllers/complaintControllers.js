@@ -68,7 +68,7 @@ export const createComplaint = async (req, res) => {
     // }
 
     if (
-      String(unit.siteId) !== String(site._id) 
+      String(unit.siteId) !== String(site._id)
       // ||
       // String(unit.projectId) !== String(project._id)
     ) {
@@ -121,8 +121,9 @@ export const updateComplaint = async (req, res) => {
       supervisorDetails, // { supervisorId, comments, images }
       materialDemand, // { materialName, quantity, reason, images }
       resolution, // { resolvedBy, images, remarks }
-      closedBy, // userId (customer confirmation)
-      closedImages = [],
+      closureDetails,
+      // closedBy, // userId (customer confirmation)
+      // closedImages = [],
       repushedDetails, // { count, reason }
     } = req.body;
 
@@ -135,7 +136,47 @@ export const updateComplaint = async (req, res) => {
     const complaint = await Complaint.findById(id);
     if (!complaint) return sendError(res, "Complaint not found", 404);
 
-    let newStatus = null;
+    const currentStatus = complaint.status;
+
+    // 🧩 Map action → next status
+    const actionStatusMap = {
+      review: "Under Review",
+      raiseMaterialDemand: "Material Demand Raised",
+      resolve: "Resolved",
+      verifyResolution: "Closed",
+      repush: "Repushed",
+    };
+
+    let newStatus = actionStatusMap[action];
+
+    // ✅ Allowed transitions
+    const allowedTransitions = {
+      Pending: ["Under Review"],
+      "Under Review": ["Material Demand Raised", "Resolved"],
+      "Material Demand Raised": ["Resolved"],
+      Resolved: ["Closed", "Repushed"],
+      Repushed: ["Under Review"],
+      Closed: [], // 🔒 Final state
+    };
+
+    // 🚫 Skip if same status already applied
+    if (currentStatus === newStatus) {
+      return sendSuccess(
+        res,
+        `Complaint already in "${newStatus}" status. No update required.`,
+        complaint
+      );
+    }
+
+    // 🚫 Invalid transition
+    if (!allowedTransitions[currentStatus]?.includes(newStatus)) {
+      return sendSuccess(
+        res,
+        `No status update performed (invalid transition from "${currentStatus}" → "${newStatus}")`,
+        complaint
+      );
+    }
+
     const newHistoryEntry = {
       updatedBy: userId,
       updatedByRole: userRole,
@@ -229,8 +270,8 @@ export const updateComplaint = async (req, res) => {
         }
         newStatus = "Closed";
         newHistoryEntry.status = "Closed";
-        newHistoryEntry.closedBy = closedBy;
-        newHistoryEntry.closedImages = closedImages;
+        // ✅ Build structured closure details object
+        newHistoryEntry.closureDetails = closureDetails;
         break;
 
       /**
@@ -249,6 +290,7 @@ export const updateComplaint = async (req, res) => {
       default:
         return sendError(res, "Invalid action type", 400);
     }
+    console.log("🧩 New History Entry:", newHistoryEntry);
 
     // 🔹 Apply update
     complaint.status = newStatus;
@@ -280,6 +322,7 @@ export const getAllComplaints = async (req, res) => {
       siteId,
       projectId,
       addedBy,
+      userId,
       isPagination = "true",
       page = 1,
       limit = 10,
@@ -291,6 +334,8 @@ export const getAllComplaints = async (req, res) => {
     if (siteId) match.siteId = siteId;
     // if (projectId) match.projectId = projectId;
     if (addedBy) match.addedBy = addedBy;
+
+     if (userId) match.userId = userId;
 
     if (search?.trim()) {
       const regex = new RegExp(search.trim(), "i");
@@ -335,40 +380,31 @@ export const getAllComplaints = async (req, res) => {
   }
 };
 
-/**
- * ❌ DELETE - Remove a complaint (Admin/Supervisor Only)
- */
+// 🧩 Delete Complaint
 export const deleteComplaint = async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId, userRole } = req.body; // Include these in request body
 
-    // if (!userId) return sendError(res, "User ID is required", 400);
-    // if (!userRole) return sendError(res, "User role is required", 400);
-
-    // ✅ Only Admin or Supervisor can delete
-    if (!["Admin", "Supervisor"].includes(userRole)) {
-      return sendError(res, "Unauthorized to delete complaints", 403);
+    // 🔹 Validate ID
+    if (!id) {
+      return sendError(res, "Complaint ID is required", 400);
     }
 
-    const complaint = await Complaint.findById(id);
-    if (!complaint) return sendError(res, "Complaint not found", 404);
+    // 🔹 Find and delete complaint
+    const deletedComplaint = await Complaint.findByIdAndDelete(id);
 
-    await Complaint.findByIdAndDelete(id);
+    if (!deletedComplaint) {
+      return sendError(res, "Complaint not found", 404);
+    }
 
-    return sendSuccess(
-      res,
-      "Complaint deleted successfully",
-      {
-        deletedComplaintId: id,
-        // deletedBy: { userId, userRole },
-      },
-      200
-    );
+    // ✅ Return success
+    return sendSuccess(res, "Complaint deleted successfully", deletedComplaint);
   } catch (error) {
+    console.error("❌ Delete Complaint Error:", error);
     return sendError(res, "Failed to delete complaint", 500, error.message);
   }
 };
+
 
 /**
  * 📋 Get Complaints by User ID or Complaint ID
@@ -390,7 +426,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
     } = req.query;
 
     if (!userId && !complaintId)
-      return sendError(res, "Please provide either userId or complaintId", 400);
+      return sendSuccess(res, "Please provide either userId or complaintId", 400);
 
     let match = {};
 
