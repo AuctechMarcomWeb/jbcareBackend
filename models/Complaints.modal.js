@@ -68,9 +68,10 @@ const StatusHistorySchema = new Schema(
     status: {
       type: String,
       enum: [
-        "Pending",
+        "open",
         "Under Review",
         "Material Demand Raised",
+        "WorkinProgress",
         "Resolved",
         "Closed",
         "Repushed",
@@ -109,6 +110,7 @@ const ComplaintSchema = new Schema(
       required: true,
     },
     complaintTitle: { type: String, required: true, trim: true },
+    problemType: { type: String, required: true, trim: true },
     complaintDescription: { type: String, required: true, trim: true },
     images: [{ type: String }],
 
@@ -116,14 +118,15 @@ const ComplaintSchema = new Schema(
     status: {
       type: String,
       enum: [
-        "Pending",
+        "open",
         "Under Review",
         "Material Demand Raised",
+        "WorkinProgress",
         "Resolved",
         "Closed",
         "Repushed",
       ],
-      default: "Pending",
+      default: "open",
     },
 
     // 🔹 Full status history
