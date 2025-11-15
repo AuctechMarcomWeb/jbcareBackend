@@ -21,6 +21,7 @@ export const createComplaint = async (req, res) => {
       addedBy,
       complaintTitle,
       complaintDescription,
+      problemType,
       images,
     } = req.body;
 
@@ -88,6 +89,7 @@ export const createComplaint = async (req, res) => {
       addedBy,
       complaintTitle,
       complaintDescription,
+      problemType,
       images,
       status: "Open",
       statusHistory: [
