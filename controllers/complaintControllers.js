@@ -116,17 +116,17 @@ export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
     const {
-      action, // "review", "raiseMaterialDemand", "resolve", "verifyResolution", "repush"
+      action,
       userId,
       userRole,
       comment,
-      supervisorDetails, // { supervisorId, comments, images }
-      materialDemand, // { materialName, quantity, reason, images }
-      resolution, // { resolvedBy, images, remarks }
+      supervisorDetails,
+      materialDemand,
+      resolution,
       closureDetails,
-      // closedBy, // userId (customer confirmation)
+      // closedBy,
       // closedImages = [],
-      repushedDetails, // { count, reason }
+      repushedDetails,
     } = req.body;
 
     // 🔹 Validate params
@@ -153,12 +153,55 @@ export const updateComplaint = async (req, res) => {
 
     // ✅ Allowed transitions
     const allowedTransitions = {
-      Pending: ["Under Review"],
-      "Under Review": ["Material Demand Raised", "Resolved"],
-      "Material Demand Raised": ["Resolved"],
-      Resolved: ["Closed", "Repushed"],
-      Repushed: ["Under Review"],
-      Closed: [], // 🔒 Final state
+      Open: [
+        "Under Review",
+        "Material Demand Raised",
+        "Resolved",
+        "Repushed",
+        "Closed",
+        "WorkinProgress",
+      ],
+      "Under Review": [
+        "Under Review",
+        "Material Demand Raised",
+        "Resolved",
+        "Repushed",
+        "Closed",
+        "WorkinProgress",
+      ],
+      WorkinProgress: [
+        "Under Review",
+        "Material Demand Raised",
+        "Resolved",
+        "Repushed",
+        "Closed",
+        "WorkinProgress",
+      ],
+      "Material Demand Raised": [
+        "Under Review",
+        "Material Demand Raised",
+        "Resolved",
+        "Repushed",
+        "Closed",
+        "WorkinProgress",
+      ],
+      Resolved: [
+        "Under Review",
+        "Material Demand Raised",
+        "Resolved",
+        "Repushed",
+        "Closed",
+        "WorkinProgress",
+      ],
+      Repushed: [
+        "Under Review",
+        "Material Demand Raised",
+        "Resolved",
+        "Repushed",
+        "Closed",
+        "WorkinProgress",
+      ],
+      Closed: [],
     };
 
     // 🚫 Skip if same status already applied
