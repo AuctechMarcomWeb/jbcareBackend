@@ -18,7 +18,7 @@ export const createComplaint = async (req, res) => {
       projectId,
       unitId,
       userId,
-      addedBy, // "Landlord", "Tenant", or "Admin"
+      addedBy,
       complaintTitle,
       complaintDescription,
       images,
@@ -89,10 +89,10 @@ export const createComplaint = async (req, res) => {
       complaintTitle,
       complaintDescription,
       images,
-      status: "Pending",
+      status: "Open",
       statusHistory: [
         {
-          status: "Pending",
+          status: "Open",
           updatedBy: userId,
           updatedByRole: addedBy,
           comment: "Complaint created",
@@ -335,7 +335,7 @@ export const getAllComplaints = async (req, res) => {
     // if (projectId) match.projectId = projectId;
     if (addedBy) match.addedBy = addedBy;
 
-     if (userId) match.userId = userId;
+    if (userId) match.userId = userId;
 
     if (search?.trim()) {
       const regex = new RegExp(search.trim(), "i");
@@ -405,7 +405,6 @@ export const deleteComplaint = async (req, res) => {
   }
 };
 
-
 /**
  * 📋 Get Complaints by User ID or Complaint ID
  * ✅ Examples:
@@ -426,7 +425,11 @@ export const getComplaintsByUserOrId = async (req, res) => {
     } = req.query;
 
     if (!userId && !complaintId)
-      return sendSuccess(res, "Please provide either userId or complaintId", 400);
+      return sendSuccess(
+        res,
+        "Please provide either userId or complaintId",
+        400
+      );
 
     let match = {};
 
