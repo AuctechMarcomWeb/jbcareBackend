@@ -12,31 +12,29 @@ export const getSiteUnitCounts = async (req, res) => {
           from: "units",
           localField: "_id",
           foreignField: "siteId",
-          as: "units"
-        }
+          as: "units",
+        },
       },
       {
         $project: {
           site: "$siteName",
-          units: { $size: "$units" }
-        }
-      }
+          units: { $size: "$units" },
+        },
+      },
     ]);
 
     return res.status(200).json({
       success: true,
-      data
+      data,
     });
-
   } catch (error) {
     console.error("Error:", error);
     return res.status(500).json({
       success: false,
-      message: "Server error"
+      message: "Server error",
     });
   }
 };
-
 
 export const getBillingSummary = async (req, res) => {
   try {
@@ -91,22 +89,45 @@ export const getBillingSummary = async (req, res) => {
     const collectedPercentage =
       data.totalBillingAmount === 0
         ? 0
-        : ((data.totalCollectedAmount / data.totalBillingAmount) * 100).toFixed(2);
+        : ((data.totalCollectedAmount / data.totalBillingAmount) * 100).toFixed(
+            2
+          );
+
+    const electricityDummy = {
+      totalElectricity: 35000,
+      totalPaidElectricity: 21000,
+      totalUnpaidElectricity: 14000,
+    };
+
+    // --------------------------------------------------
+    // 📌 ELECTRICITY COLLECTION PERCENTAGE
+    // --------------------------------------------------
+    const electricityPercentage =
+      electricityDummy.totalElectricity === 0
+        ? 0
+        : Number(
+            (
+              (electricityDummy.totalPaidElectricity /
+                electricityDummy.totalElectricity) *
+              100
+            ).toFixed(2)
+          );
 
     return res.status(200).json({
       success: true,
       data: {
         ...data,
         collectedPercentage: Number(collectedPercentage),
+        // Electricity fields
+        ...electricityDummy,
+        electricityPercentage, // <-- NEW
       },
     });
-
   } catch (error) {
     console.error("Billing summary error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 
 export const getComplaintStats = async (req, res) => {
   try {
@@ -115,9 +136,9 @@ export const getComplaintStats = async (req, res) => {
       {
         $group: {
           _id: "$status",
-          count: { $sum: 1 }
-        }
-      }
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     let totalComplaints = 0;
@@ -166,5 +187,3 @@ export const getComplaintStats = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
-
