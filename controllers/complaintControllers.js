@@ -548,7 +548,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
         res,
         "No complaints found for this user",
         complaints,
-        404
+        200
       );
 
     return sendSuccess(res, "Complaints fetched successfully", {
