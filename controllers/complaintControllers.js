@@ -143,7 +143,7 @@ export const updateComplaint = async (req, res) => {
     // 🧩 Map action → next status
     const actionStatusMap = {
       review: "Under Review",
-      WorkinProgress: "WorkinProgress",
+      workinProgress: "Work in Progress",
       raiseMaterialDemand: "Material Demand Raised",
       resolve: "Resolved",
       verifyResolution: "Closed",
@@ -160,7 +160,7 @@ export const updateComplaint = async (req, res) => {
         "Resolved",
         "Repushed",
         "Closed",
-        "WorkinProgress",
+        "Work in Progress",
       ],
       "Under Review": [
         "Under Review",
@@ -168,15 +168,15 @@ export const updateComplaint = async (req, res) => {
         "Resolved",
         "Repushed",
         "Closed",
-        "WorkinProgress",
+        "Work in Progress",
       ],
-      WorkinProgress: [
+      "Work in Progress": [
         "Under Review",
         "Material Demand Raised",
         "Resolved",
         "Repushed",
         "Closed",
-        "WorkinProgress",
+        "Work in Progress",
       ],
       "Material Demand Raised": [
         "Under Review",
@@ -184,7 +184,7 @@ export const updateComplaint = async (req, res) => {
         "Resolved",
         "Repushed",
         "Closed",
-        "WorkinProgress",
+        "Work in Progress",
       ],
       Resolved: [
         "Under Review",
@@ -192,7 +192,7 @@ export const updateComplaint = async (req, res) => {
         "Resolved",
         "Repushed",
         "Closed",
-        "WorkinProgress",
+        "Work in Progress",
       ],
       Repushed: [
         "Under Review",
@@ -200,7 +200,7 @@ export const updateComplaint = async (req, res) => {
         "Resolved",
         "Repushed",
         "Closed",
-        "WorkinProgress",
+        "Work in Progress",
       ],
       Closed: [],
     };
@@ -294,12 +294,11 @@ export const updateComplaint = async (req, res) => {
         newHistoryEntry.status = "Resolved";
         newHistoryEntry.resolution = resolution;
         break;
-      case "WorkinProgress":
-        if (!resolution)
-          return sendError(res, "Resolution details required", 400);
-        newStatus = "WorkinProgress";
-        newHistoryEntry.status = "WorkinProgress";
-        newHistoryEntry.resolution = resolution;
+
+      case "workinProgress":
+        newStatus = "Work in Progress";
+        newHistoryEntry.status = "Work in Progress";
+        newHistoryEntry.comment = comment || "Work started"; // default comment
         break;
 
       case "verifyResolution":
