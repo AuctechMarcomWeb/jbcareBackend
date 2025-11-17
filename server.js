@@ -19,7 +19,8 @@ import maintainCharge from "./routes/masters/maintainChargesRoutes.js";
 import maintenanceBillRoutes from "./routes/Bills/maintenanceBillRoutes.js";
 import paymentRoutes from "./routes/Payment/payment-routes.js";
 import billingRoutes from "./routes/Bills/BillingRoutes.js";
-import dashboardRoutes from './routes/dashboard/dashboard.js'
+import dashboardRoutes from './routes/dashboard/dashboard.js';
+import statsRoutes from './routes/stats/statsRoutes.js'
 
 dotenv.config();
 connectDB();
@@ -43,7 +44,8 @@ app.use("/api/maintain-charges", maintainCharge);
 app.use("/api/maintenance-bill", maintenanceBillRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/billing", billingRoutes);
-app.use("/api/dashboard", dashboardRoutes);
+// app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/stats",statsRoutes)
 
 app.use("/api", uploadRoutes);
 
