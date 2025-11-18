@@ -115,226 +115,192 @@ export const createComplaint = async (req, res) => {
 export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
+
     const {
       action,
       userId,
-      userRole,
+      userRole, // Admin / Supervisor / HelpDesk / Customer
       comment,
       supervisorDetails,
       materialDemand,
       resolution,
       closureDetails,
-      // closedBy,
-      // closedImages = [],
       repushedDetails,
     } = req.body;
 
-    // 🔹 Validate params
-    if (!id) return sendError(res, "Complaint ID is required", 400);
-    // if (!userId) return sendError(res, "User ID is required", 400);
-    if (!userRole) return sendError(res, "User role is required", 400);
-    if (!action) return sendError(res, "Action is required", 400);
+    // -----------------------------
+    //  Validate input
+    // -----------------------------
+    if (!id) return sendError(res, "Complaint ID is required");
+    if (!action) return sendError(res, "Action is required");
+    if (!userRole) return sendError(res, "User role is required");
 
     const complaint = await Complaint.findById(id);
     if (!complaint) return sendError(res, "Complaint not found", 404);
 
     const currentStatus = complaint.status;
 
-    // 🧩 Map action → next status
+    // -------------------------------------------
+    //  ACTION → STATUS MAP BASED ON YOUR ENUM
+    // -------------------------------------------
     const actionStatusMap = {
-      review: "Under Review",
-      workinProgress: "Work in Progress",
-      raiseMaterialDemand: "Material Demand Raised",
-      resolve: "Resolved",
-      verifyResolution: "Closed",
-      repush: "Repushed",
+      review: "Review By Supervisor",
+      raiseMaterialDemand: "Raise Material Demand",
+      workInProgress: "Work in Progress",
+      resolve: "Closed By Supervisor",
+      repush: "Repush By Help Desk",
+      verifyResolution: "Closed By Help Desk",
     };
 
     let newStatus = actionStatusMap[action];
+    if (!newStatus) return sendError(res, "Invalid action value");
 
-    // ✅ Allowed transitions
+    // ------------------------------------------------------------
+    // Allowed transition rules (based on your enum)
+    // ------------------------------------------------------------
     const allowedTransitions = {
       Open: [
-        "Under Review",
-        "Material Demand Raised",
-        "Resolved",
-        "Repushed",
-        "Closed",
+        "Review By Supervisor",
+        "Raise Material Demand",
         "Work in Progress",
+        "Closed By Supervisor",
+        "Repush By Help Desk",
+        "Closed By Help Desk",
       ],
-      "Under Review": [
-        "Under Review",
-        "Material Demand Raised",
-        "Resolved",
-        "Repushed",
-        "Closed",
+
+      "Review By Supervisor": [
+        "Raise Material Demand",
         "Work in Progress",
+        "Closed By Supervisor",
+        "Repush By Help Desk",
       ],
-      "Work in Progress": [
-        "Under Review",
-        "Material Demand Raised",
-        "Resolved",
-        "Repushed",
-        "Closed",
+
+      "Raise Material Demand": [
         "Work in Progress",
+        "Closed By Supervisor",
+        "Repush By Help Desk",
       ],
-      "Material Demand Raised": [
-        "Under Review",
-        "Material Demand Raised",
-        "Resolved",
-        "Repushed",
-        "Closed",
-        "Work in Progress",
+
+      "Work in Progress": ["Closed By Supervisor", "Repush By Help Desk"],
+
+      "Closed By Supervisor": [
+        "Closed By Help Desk", // help desk final closure
+        "Repush By Help Desk"
       ],
-      Resolved: [
-        "Under Review",
-        "Material Demand Raised",
-        "Resolved",
-        "Repushed",
-        "Closed",
-        "Work in Progress",
-      ],
-      Repushed: [
-        "Under Review",
-        "Material Demand Raised",
-        "Resolved",
-        "Repushed",
-        "Closed",
-        "Work in Progress",
-      ],
-      Closed: [],
+
+      "Repush By Help Desk": ["Review By Supervisor", "Work in Progress"],
+
+      "Closed By Help Desk": [], // final state
     };
 
-    // 🚫 Skip if same status already applied
+    // skip if status is same
     if (currentStatus === newStatus) {
-      return sendSuccess(
-        res,
-        `Complaint already in "${newStatus}" status. No update required.`,
-        complaint
-      );
+      return sendSuccess(res, `Already in '${newStatus}'`, complaint);
     }
 
-    // 🚫 Invalid transition
     if (!allowedTransitions[currentStatus]?.includes(newStatus)) {
-      return sendSuccess(
+      return sendError(
         res,
-        `No status update performed (invalid transition from "${currentStatus}" → "${newStatus}")`,
-        complaint
+        `Invalid transition: '${currentStatus}' → '${newStatus}'`
       );
     }
 
-    const newHistoryEntry = {
+    // ------------------------------------------------------------
+    // HISTORY ENTRY STRUCTURE
+    // ------------------------------------------------------------
+    const historyEntry = {
       updatedBy: userId,
       updatedByRole: userRole,
       comment: comment || "",
       updatedAt: new Date(),
+      status: newStatus,
     };
 
-    // 🔁 Handle actions
-    switch (action) {
-      /**
-       * 🧰 SUPERVISOR REVIEW STAGE
-       */
-      case "review":
-        newStatus = "Under Review";
-        newHistoryEntry.status = "Under Review";
+    // ------------------------------------------------------------
+    // ACTION HANDLERS
+    // ------------------------------------------------------------
 
-        // 🔹 Validate supervisor details
-        if (userRole !== "Admin") {
-          if (!supervisorDetails?.supervisorId) {
-            return sendError(res, "Supervisor ID is required", 400);
-          }
-
-          // 🧾 Check if supervisor exists
-          const supervisor = await Supervisor.findById(
-            supervisorDetails.supervisorId
-          );
-          if (!supervisor) {
-            return sendError(res, "Supervisor not found", 404);
-          }
-
-          // // 🧩 Check if supervisor is assigned to this unit
-          // if (
-          //   supervisor.unitId &&
-          //   String(supervisor.unitId) !== String(complaint.unitId)
-          // ) {
-          //   return sendError(
-          //     res,
-          //     "Supervisor is not assigned to this complaint’s unit",
-          //     400
-          //   );
-          // }
-
-          newHistoryEntry.supervisorDetails = {
-            supervisorId: supervisor._id,
-            comments: supervisorDetails.comments || "",
-            images: supervisorDetails.images || [],
-          };
-        } else {
-          newHistoryEntry.supervisorDetails = {
-            supervisorId: null,
-            comments: supervisorDetails?.comments || "Reviewed by Admin",
-            images: supervisorDetails?.images || [],
-          };
+    /**
+     * 1) REVIEW BY SUPERVISOR
+     */
+    if (action === "review") {
+      if (userRole !== "Admin") {
+        // supervisor must be valid only when NOT admin
+        if (!supervisorDetails?.supervisorId) {
+          return sendError(res, "Supervisor ID required");
         }
-        break;
 
-      case "raiseMaterialDemand":
-        if (!materialDemand)
-          return sendError(res, "Material demand details required", 400);
-        newStatus = "Material Demand Raised";
-        newHistoryEntry.status = "Material Demand Raised";
-        newHistoryEntry.materialDemand = materialDemand;
-        break;
+        const supervisor = await Supervisor.findById(
+          supervisorDetails.supervisorId
+        );
+        if (!supervisor) return sendError(res, "Supervisor not found", 404);
 
-      case "resolve":
-        if (!resolution)
-          return sendError(res, "Resolution details required", 400);
-        newStatus = "Resolved";
-        newHistoryEntry.status = "Resolved";
-        newHistoryEntry.resolution = resolution;
-        break;
-
-      case "workinProgress":
-        newStatus = "Work in Progress";
-        newHistoryEntry.status = "Work in Progress";
-        newHistoryEntry.comment = comment || "Work started"; // default comment
-        break;
-
-      case "verifyResolution":
-        if (userRole !== "Admin") {
-          if (!closedBy)
-            return sendError(
-              res,
-              "Customer (closedBy) required for closure",
-              400
-            );
-        }
-        newStatus = "Closed";
-        newHistoryEntry.status = "Closed";
-        // ✅ Build structured closure details object
-        newHistoryEntry.closureDetails = closureDetails;
-        break;
-
-      case "repush":
-        newStatus = "Repushed";
-        newHistoryEntry.status = "Repushed";
-        newHistoryEntry.repushedDetails = repushedDetails || {
-          count: (complaint.repushedDetails?.count || 0) + 1,
-          reason: comment || "Repushed by user",
-          repushedAt: new Date(),
+        historyEntry.supervisorDetails = {
+          supervisorId: supervisor._id,
+          comments: supervisorDetails.comments || "",
+          images: supervisorDetails.images || [],
         };
-        break;
-
-      default:
-        return sendError(res, "Invalid action type", 400);
+      } else {
+        // Admin reviewing → no supervisor validation
+        historyEntry.supervisorDetails = {
+          supervisorId: null,
+          comments: supervisorDetails?.comments || "Reviewed by Admin",
+          images: supervisorDetails?.images || [],
+        };
+      }
     }
-    console.log("🧩 New History Entry:", newHistoryEntry);
 
-    // 🔹 Apply update
+    /**
+     * 2) RAISE MATERIAL DEMAND
+     */
+    if (action === "raiseMaterialDemand") {
+      if (!materialDemand)
+        return sendError(res, "Material demand details required");
+
+      historyEntry.materialDemand = materialDemand;
+    }
+
+    /**
+     * 3) WORK IN PROGRESS
+     */
+    if (action === "workInProgress") {
+      historyEntry.comment = comment || "Work started";
+    }
+
+    /**
+     * 4) CLOSED BY SUPERVISOR
+     */
+    if (action === "closeBySupervisor") {
+      if (!closureDetails) return sendError(res, "Closure details required");
+
+      historyEntry.closureDetails = closureDetails;
+    }
+
+    /**
+     * 5) REPUSH BY HELP DESK
+     */
+    if (action === "repush") {
+      historyEntry.repushedDetails = {
+        count: (complaint?.repushedDetails?.count || 0) + 1,
+        reason: repushedDetails?.reason || comment || "Repushed",
+        repushedAt: new Date(),
+      };
+    }
+
+    /**
+     * 6) CLOSED BY HELP DESK
+     */
+    if (action === "closeByHelpDesk") {
+      if (!closureDetails) return sendError(res, "Closure details required");
+
+      historyEntry.closureDetails = closureDetails;
+    }
+
+    // ------------------------------------------------------------
+    // SAVE THE RESULT
+    // ------------------------------------------------------------
     complaint.status = newStatus;
-    complaint.statusHistory.push(newHistoryEntry);
-
+    complaint.statusHistory.push(historyEntry);
     await complaint.save();
 
     return sendSuccess(
