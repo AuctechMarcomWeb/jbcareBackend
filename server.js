@@ -18,15 +18,16 @@ import supervisorRoutes from "./routes/User/supervisorRoutes.js";
 import maintainCharge from "./routes/masters/maintainChargesRoutes.js";
 import maintenanceBillRoutes from "./routes/Bills/maintenanceBillRoutes.js";
 import billingRoutes from "./routes/Bills/BillingRoutes.js";
-import dashboardRoutes from './routes/dashboard/dashboard.js';
-import statsRoutes from './routes/stats/statsRoutes.js'
-import walletRoutes from "./routes/Payment/walletRoutes.js"
-
-
+import dashboardRoutes from "./routes/dashboard/dashboard.js";
+import statsRoutes from "./routes/stats/statsRoutes.js";
+import walletRoutes from "./routes/Payment/walletRoutes.js";
+import problemTypeRoutes from "./routes/masters/problemTypeRoutes.js";
+import { startAgendaJobs } from "./jobs/index.js";
 
 dotenv.config();
 connectDB();
-
+// Start Agenda
+startAgendaJobs(); 
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -46,8 +47,9 @@ app.use("/api/maintain-charges", maintainCharge);
 app.use("/api/maintenance-bill", maintenanceBillRoutes);
 app.use("/api/billing", billingRoutes);
 // app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/stats",statsRoutes)
+app.use("/api/stats", statsRoutes);
 app.use("/api/wallet", walletRoutes);
+app.use("/api/problem-types", problemTypeRoutes);
 
 app.use("/api", uploadRoutes);
 
