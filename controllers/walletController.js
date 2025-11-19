@@ -183,38 +183,49 @@ export const payUsingWallet = async (req, res) => {
   }
 };
 
-// 📜 Get wallet history
+// 📜 Get wallet history (Balance + All Transactions)
 export const getWalletHistory = async (req, res) => {
   try {
     const { landlordId } = req.params;
 
-    if (!landlordId)
+    if (!landlordId) {
       return res.status(400).json({
         success: false,
         message: "Landlord ID is required",
       });
+    }
 
+    // Fetch landlord wallet balances
     const landlord = await Landlord.findById(landlordId).select(
       "walletBalance availableBalance"
     );
 
-    if (!landlord)
+    if (!landlord) {
       return res.status(404).json({
         success: false,
         message: "Landlord not found",
       });
+    }
+
+    // Fetch all transactions
+    const transactions = await WalletTransaction.find({ landlordId })
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.status(200).json({
       success: true,
-      creditLimit: landlord.walletBalance,
-      availableBalance: landlord.availableBalance,
-      totalUsable: landlord.walletBalance + landlord.availableBalance,
+      wallet: {
+        creditLimit: landlord.walletBalance,
+        availableBalance: landlord.availableBalance,
+        totalUsable: landlord.walletBalance + landlord.availableBalance,
+      },
+      transactions,
     });
   } catch (error) {
-    console.error("Get wallet balance error:", error);
+    console.error("Get wallet history error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to get wallet balance",
+      message: "Failed to get wallet history",
       error: error.message,
     });
   }
