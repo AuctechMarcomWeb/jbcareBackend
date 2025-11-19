@@ -22,7 +22,7 @@ const supervisorSchema = new mongoose.Schema(
       ref: "Project",
     //   required: true,
     },
-    unitId: { type: mongoose.Schema.Types.ObjectId, ref: "Unit" },
+    // unitId: { type: mongoose.Schema.Types.ObjectId, ref: "Unit" },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     isActive: { type: Boolean, default: true },
   },
