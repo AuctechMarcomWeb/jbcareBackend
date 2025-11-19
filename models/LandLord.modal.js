@@ -70,6 +70,8 @@ const landlordSchema = new mongoose.Schema(
       ref: "User", // whoever registered this landlord
     },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // 👈 new field
+    parking: { type: String },
+    availableBalance: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
