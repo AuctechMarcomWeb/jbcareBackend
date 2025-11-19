@@ -71,7 +71,10 @@ export const verifyPayment = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Landlord not found" });
 
-    landlord.walletBalance = (landlord.walletBalance || 0) + Number(amount);
+    // 🟢 Add to availableBalance (NOT credit limit)
+    landlord.availableBalance =
+      (landlord.availableBalance || 0) + Number(amount);
+
     await landlord.save();
 
     // Record credit transaction
@@ -104,25 +107,54 @@ export const payUsingWallet = async (req, res) => {
   try {
     const { landlordId, amount, billId } = req.body;
 
-    if (!landlordId || !amount)
-      return res
-        .status(400)
-        .json({ success: false, message: "Landlord ID and amount required" });
+    if (!landlordId || !amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Landlord ID and amount are required",
+      });
+    }
 
     const landlord = await Landlord.findById(landlordId);
-    if (!landlord)
-      return res
-        .status(404)
-        .json({ success: false, message: "Landlord not found" });
+    if (!landlord) {
+      return res.status(404).json({
+        success: false,
+        message: "Landlord not found",
+      });
+    }
 
-    if (landlord.walletBalance < amount)
-      return res
-        .status(400)
-        .json({ success: false, message: "Insufficient wallet balance" });
+    const totalUsable =
+      (landlord.availableBalance || 0) + (landlord.walletBalance || 0);
 
-    landlord.walletBalance -= Number(amount);
+    // ❌ Not enough balance
+    if (totalUsable < amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient wallet balance",
+        availableBalance: landlord.availableBalance,
+        creditLimit: landlord.walletBalance,
+      });
+    }
+
+    let remainingAmount = amount;
+
+    // 🟢 Step 1: Deduct from available balance
+    if (landlord.availableBalance >= remainingAmount) {
+      landlord.availableBalance -= remainingAmount;
+      remainingAmount = 0;
+    } else {
+      remainingAmount -= landlord.availableBalance;
+      landlord.availableBalance = 0;
+    }
+
+    // 🟡 Step 2: Deduct from credit limit
+    if (remainingAmount > 0) {
+      landlord.walletBalance -= remainingAmount;
+      remainingAmount = 0;
+    }
+
     await landlord.save();
 
+    // 🧾 Log wallet debit transaction
     await WalletTransaction.create({
       landlordId,
       type: "debit",
@@ -130,18 +162,24 @@ export const payUsingWallet = async (req, res) => {
       description: `Maintenance Bill Payment${billId ? ` (${billId})` : ""}`,
       referenceId: billId || "",
       method: "wallet",
+      closingAvailableBalance: landlord.availableBalance,
+      closingCreditLimit: landlord.walletBalance,
     });
 
     res.status(200).json({
       success: true,
-      message: "Payment deducted from wallet successfully",
-      updatedBalance: landlord.walletBalance,
+      message: "Payment processed successfully",
+      availableBalance: landlord.availableBalance,
+      creditLimit: landlord.walletBalance,
+      totalUsable: landlord.availableBalance + landlord.walletBalance,
     });
   } catch (error) {
     console.error("Wallet debit error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to process payment" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to process wallet payment",
+      error: error.message,
+    });
   }
 };
 
@@ -150,27 +188,34 @@ export const getWalletHistory = async (req, res) => {
   try {
     const { landlordId } = req.params;
 
-    const landlord = await Landlord.findById(landlordId).select(
-      "walletBalance"
-    );
-    if (!landlord)
-      return res
-        .status(404)
-        .json({ success: false, message: "Landlord not found" });
+    if (!landlordId)
+      return res.status(400).json({
+        success: false,
+        message: "Landlord ID is required",
+      });
 
-    const transactions = await WalletTransaction.find({ landlordId })
-      .sort({ createdAt: -1 })
-      .lean();
+    const landlord = await Landlord.findById(landlordId).select(
+      "walletBalance availableBalance"
+    );
+
+    if (!landlord)
+      return res.status(404).json({
+        success: false,
+        message: "Landlord not found",
+      });
 
     res.status(200).json({
       success: true,
-      walletBalance: landlord.walletBalance,
-      transactions,
+      creditLimit: landlord.walletBalance,
+      availableBalance: landlord.availableBalance,
+      totalUsable: landlord.walletBalance + landlord.availableBalance,
     });
   } catch (error) {
-    console.error("Get wallet history error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to fetch wallet history" });
+    console.error("Get wallet balance error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get wallet balance",
+      error: error.message,
+    });
   }
 };

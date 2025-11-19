@@ -20,6 +20,9 @@ const walletTransactionSchema = new mongoose.Schema(
       enum: ["razorpay", "wallet", "adjustment"],
       default: "wallet",
     },
+    // Wallet balance after this transaction
+    closingAvailableBalance: { type: Number },
+    closingCreditLimit: { type: Number },
   },
   { timestamps: true }
 );
