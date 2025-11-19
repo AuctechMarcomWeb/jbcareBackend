@@ -27,7 +27,7 @@ export const createSupervisor = async (req, res) => {
       verificationDocuments,
       siteId,
       projectId,
-      unitId, // single unit
+      // unitId, // single unit
       isActive = true,
     } = req.body;
 
@@ -61,7 +61,6 @@ export const createSupervisor = async (req, res) => {
       verificationDocuments,
       siteId,
       // projectId,
-      unitId, // single unit
       isActive,
     });
     await supervisor.save();
