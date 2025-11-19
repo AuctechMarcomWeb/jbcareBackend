@@ -185,7 +185,7 @@ export const updateComplaint = async (req, res) => {
 
       "Closed By Supervisor": [
         "Closed By Help Desk", // help desk final closure
-        "Repush By Help Desk"
+        "Repush By Help Desk",
       ],
 
       "Repush By Help Desk": ["Review By Supervisor", "Work in Progress"],
@@ -335,7 +335,19 @@ export const getAllComplaints = async (req, res) => {
 
     const match = {};
 
-    if (status) match.status = status;
+    const statusMap = {
+      open: "Open",
+      review: "Review By Supervisor",
+      raiseMaterialDemand: "Raise Material Demand",
+      workInProgress: "Work in Progress",
+      resolve: "Closed By Supervisor",
+      verifyResolution: "Closed Help Desk",
+      repush: "Repush By Help Desk",
+    };
+
+    if (status) {
+      match.status = statusMap[status] || status;
+    }
     if (siteId) match.siteId = siteId;
     // if (projectId) match.projectId = projectId;
     if (addedBy) match.addedBy = addedBy;
