@@ -131,6 +131,11 @@ const ComplaintSchema = new Schema(
 
     // 🔹 Full status history
     statusHistory: [StatusHistorySchema],
+    buzzer: {
+      isActive: { type: Boolean, default: false }, // is buzzer currently ringing?
+      autoTriggerAt: { type: Date }, // when buzzer should start
+      disabledByUser: { type: Boolean, default: false }, // user manually stopped buzzer
+    },
   },
   { timestamps: true }
 );

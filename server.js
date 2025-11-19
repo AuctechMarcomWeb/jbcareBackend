@@ -22,12 +22,9 @@ import dashboardRoutes from "./routes/dashboard/dashboard.js";
 import statsRoutes from "./routes/stats/statsRoutes.js";
 import walletRoutes from "./routes/Payment/walletRoutes.js";
 import problemTypeRoutes from "./routes/masters/problemTypeRoutes.js";
-import { startAgendaJobs } from "./jobs/index.js";
 
 dotenv.config();
-connectDB();
-// Start Agenda
-startAgendaJobs(); 
+connectDB(); 
 const app = express();
 app.use(cors());
 app.use(express.json());
