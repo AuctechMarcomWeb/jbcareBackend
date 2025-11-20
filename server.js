@@ -22,6 +22,9 @@ import dashboardRoutes from "./routes/dashboard/dashboard.js";
 import statsRoutes from "./routes/stats/statsRoutes.js";
 import walletRoutes from "./routes/Payment/walletRoutes.js";
 import problemTypeRoutes from "./routes/masters/problemTypeRoutes.js";
+import categoryRoutes from './routes/masters/categoryRoutes.js'
+import subCategoryRoutes from './routes/masters/subCategoryRoutes.js'
+import warehouseRoutes from './routes/masters/warehouseRoutes.js'
 
 dotenv.config();
 connectDB(); 
@@ -47,6 +50,9 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/problem-types", problemTypeRoutes);
+app.use("/api/category", categoryRoutes);
+app.use("/api/sub-category", subCategoryRoutes);
+app.use("/api/warehouse", warehouseRoutes);
 
 app.use("/api", uploadRoutes);
 
