@@ -157,30 +157,25 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
     const { landlordId, siteId, unitId, search = "" } = req.query;
 
     const now = new Date();
-    const firstDay = new Date(
-      Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
-    );
+    const firstDay = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
     const daysInMonth = new Date(
       now.getFullYear(),
       now.getMonth() + 1,
       0
     ).getDate();
 
-    // 🔹 Build filters for landlords
     const landlordFilter = { isActive: true };
     if (landlordId) landlordFilter._id = landlordId;
 
-    // 🔹 Global search regex
     const searchRegex = new RegExp(search, "i");
 
-    // 🔹 Get landlords with unit + site details
     const landlords = await Landlord.find(landlordFilter)
       .populate({
         path: "unitIds",
-        populate: {
-          path: "siteId",
-          select: "siteName",
-        },
+        populate: [
+          { path: "siteId", select: "siteName" },
+          { path: "tenantId", select: "name isActive" }, // <-- important
+        ],
       })
       .lean();
 
@@ -195,9 +190,7 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
     const summary = [];
 
     for (const landlord of landlords) {
-      // 🔹 Apply global search filter
       if (search && !landlord.name.match(searchRegex)) {
-        // still check units
         const unitMatch = landlord.unitIds.some(
           (u) =>
             u?.unitNumber?.match(searchRegex) ||
@@ -206,13 +199,14 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
         if (!unitMatch) continue;
       }
 
-      let totalAmount = 0;
+      let totalMaintenance = 0;
       let totalGST = 0;
       let totalBill = 0;
-      let totalMaintenance = 0;
-      let totalElectricity = 0;
+      let totalElectricityAmount = 0;
+      let totalAmount = 0;
 
-      // filter units if siteId or unitId passed
+      const unitDetails = [];
+
       const filteredUnits = landlord.unitIds.filter((unit) => {
         if (siteId && String(unit.siteId?._id) !== String(siteId)) return false;
         if (unitId && String(unit._id) !== String(unitId)) return false;
@@ -227,50 +221,96 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
         });
 
         let maintenance = 0;
+        let maintenancePerSqft = 0;
         let gst = 0;
 
         if (maintainCharge) {
           if (maintainCharge.rateType === "per_sqft") {
-            maintenance =
-              (unit.areaSqFt || 0) * (maintainCharge.rateValue || 0);
+            maintenancePerSqft = maintainCharge.rateValue || 0;
+            maintenance = (unit.areaSqFt || 0) * maintenancePerSqft;
           } else {
             maintenance = maintainCharge.rateValue || 0;
           }
           gst = (maintenance * (maintainCharge.gstPercent || 0)) / 100;
         } else {
-          // dummy fallback charge
           maintenance = 100;
           gst = (maintenance * 18) / 100;
         }
 
+        // ---- Dummy Electricity Data ----
+        const electricityUnitRate = 10;
+        const electricityUnitsUsed = 50;
+        const electricityTotalAmount =
+          electricityUnitRate * electricityUnitsUsed;
+
         totalMaintenance += maintenance;
         totalGST += gst;
         totalBill += maintenance + gst;
-        totalElectricity = 1; // dummy
-        totalAmount += totalBill + totalElectricity;
+        totalElectricityAmount += electricityTotalAmount;
+        totalAmount += maintenance + gst + electricityTotalAmount;
+
+        let billTo = "landlord";
+        let hasActiveTenant = "No";
+        let landlordStaying = "Yes";
+
+        // Check if tenant exists in unit
+        if (unit.tenantId) {
+          hasActiveTenant = "Yes";
+          landlordStaying = "No";
+
+          // Fetch the tenant history record that isActive: true
+          const activeTenantRecord = unit.tenantHistory?.find(
+            (t) => t.isActive
+          );
+
+          if (activeTenantRecord?.billTo) {
+            billTo = activeTenantRecord.billTo; // "tenant" or "landlord"
+          } else {
+            billTo = "tenant"; // default fallback if tenant exists
+          }
+        }
+
+        unitDetails.push({
+
+          unitArea: unit.areaSqFt || 0,
+
+          hasActiveTenant,
+          landlordStaying,
+          billTo,
+
+          maintenanceRateType: maintainCharge?.rateType || "flat",
+          maintenanceRateValue: maintainCharge?.rateValue || 0,
+          maintenancePerSqft: maintenancePerSqft,
+          // maintenanceTotal: maintenance.toFixed(2),
+
+          electricityUnitRate,
+          electricityUnitsUsed,
+          // electricityTotalAmount,
+
+          // gst: gst.toFixed(2),
+          totalUnitBill: (maintenance + gst + electricityTotalAmount).toFixed(
+            2
+          ),
+        });
       }
 
-      // 🔹 Fetch all bills for landlord (no status filtering)
+      // ---- Bill Stats ----
       const allBills = await Billing.find({ landlordId: landlord._id })
         .populate("unitId siteId")
         .lean();
 
-      // 🔹 Global search in bills
       const searchedBills = search
         ? allBills.filter(
             (b) =>
               b?.siteId?.siteName?.match(searchRegex) ||
               b?.unitId?.unitNumber?.match(searchRegex) ||
-              (b?.status || "").match(searchRegex) ||
-              (b?.totalAmount?.toString() || "").match(searchRegex)
+              (b?.status || "").match(searchRegex)
           )
         : allBills;
 
       const paidBills = searchedBills.filter((b) => b.status === "Paid");
       const unpaidBills = searchedBills.filter((b) => b.status === "Unpaid");
 
-      const paidCount = paidBills.length;
-      const unpaidCount = unpaidBills.length;
       const paidBillTotal = paidBills.reduce(
         (sum, bill) => sum + (bill.totalAmount || 0),
         0
@@ -285,7 +325,6 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
         Math.floor((now - firstDay) / (1000 * 60 * 60 * 24)) + 1;
       const billingTillToday = activeDays * perDayMaintenance;
 
-      // before pushing into summary array
       const siteNames = filteredUnits
         .map((u) => u?.siteId?.siteName)
         .filter(Boolean)
@@ -299,19 +338,26 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
       summary.push({
         landlordId: landlord._id,
         landlordName: landlord.name,
-        siteNames:siteNames,
-        unitNumbers:unitNumbers,
+
+        siteNames,
+        unitNumbers,
+
         totalMaintenance: totalMaintenance.toFixed(2),
-        totalElectricity: totalElectricity.toFixed(2),
         totalGST: totalGST.toFixed(2),
+        electricityAmount: totalElectricityAmount.toFixed(2),
         totalBillingAmount: totalAmount.toFixed(2),
+
         perDayMaintenance: perDayMaintenance.toFixed(2),
         monthDays: daysInMonth,
         billingTillToday: billingTillToday.toFixed(2),
+
         previousUnpaidBill: previousUnpaidBill.toFixed(2),
-        paidCount,
-        unpaidCount,
+        paidCount: paidBills.length,
+        unpaidCount: unpaidBills.length,
         paidBillTotal: paidBillTotal.toFixed(2),
+
+        unitDetails, // ⬅️ FULL UNIT DATA
+
         fromDate: firstDay,
         toDate: now,
       });
