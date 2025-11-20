@@ -163,7 +163,7 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
       limit = 10,
       isPagination = "true",
     } = req.query;
-console.log("Bill pagination", isPagination);
+    console.log("isPagination", isPagination);
 
     const now = new Date();
     const firstDay = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
@@ -178,45 +178,39 @@ console.log("Bill pagination", isPagination);
 
     const searchRegex = new RegExp(search, "i");
 
-    const landlordsQuery = Landlord.find(landlordFilter)
+    const landlords = await Landlord.find(landlordFilter)
       .populate({
         path: "unitIds",
         populate: [
           { path: "siteId", select: "siteName" },
-          { path: "tenantId", select: "name isActive" },
+          { path: "tenantId", select: "name isActive" }, // <-- important
         ],
       })
       .lean();
-
-    let landlords = await landlordsQuery;
-
-    // Filter by search on landlord name or units/site names
-    landlords = landlords.filter((landlord) => {
-      if (!search) return true;
-      if (landlord.name.match(searchRegex)) return true;
-      return landlord.unitIds.some(
-        (u) =>
-          u?.unitNumber?.match(searchRegex) ||
-          u?.siteId?.siteName?.match(searchRegex)
-      );
-    });
 
     if (!landlords.length) {
       return res.status(404).json({
         success: false,
         message: "No landlords found",
         data: [],
-        totalPages: 0,
-        currentPage: Number(page),
-        limit: Number(limit),
       });
     }
 
     const summary = [];
 
     for (const landlord of landlords) {
+      if (search && !landlord.name.match(searchRegex)) {
+        const unitMatch = landlord.unitIds.some(
+          (u) =>
+            u?.unitNumber?.match(searchRegex) ||
+            u?.siteId?.siteName?.match(searchRegex)
+        );
+        if (!unitMatch) continue;
+      }
+
       let totalMaintenance = 0;
       let totalGST = 0;
+      let totalBill = 0;
       let totalElectricityAmount = 0;
       let totalAmount = 0;
 
@@ -252,7 +246,7 @@ console.log("Bill pagination", isPagination);
           gst = (maintenance * 18) / 100;
         }
 
-        // Dummy Electricity
+        // ---- Dummy Electricity Data ----
         const electricityUnitRate = 10;
         const electricityUnitsUsed = 50;
         const electricityTotalAmount =
@@ -260,6 +254,7 @@ console.log("Bill pagination", isPagination);
 
         totalMaintenance += maintenance;
         totalGST += gst;
+        totalBill += maintenance + gst;
         totalElectricityAmount += electricityTotalAmount;
         totalAmount += maintenance + gst + electricityTotalAmount;
 
@@ -267,30 +262,47 @@ console.log("Bill pagination", isPagination);
         let hasActiveTenant = "No";
         let landlordStaying = "Yes";
 
+        // Check if tenant exists in unit
         if (unit.tenantId) {
           hasActiveTenant = "Yes";
           landlordStaying = "No";
 
+          // Fetch the tenant history record that isActive: true
           const activeTenantRecord = unit.tenantHistory?.find(
             (t) => t.isActive
           );
-          billTo = activeTenantRecord?.billTo || "tenant";
+
+          if (activeTenantRecord?.billTo) {
+            billTo = activeTenantRecord.billTo; // "tenant" or "landlord"
+          } else {
+            billTo = "tenant"; // default fallback if tenant exists
+          }
         }
 
         unitDetails.push({
           unitArea: unit.areaSqFt || 0,
+
           hasActiveTenant,
           landlordStaying,
           billTo,
+
           maintenanceRateType: maintainCharge?.rateType || "flat",
           maintenanceRateValue: maintainCharge?.rateValue || 0,
-          maintenancePerSqft,
+          maintenancePerSqft: maintenancePerSqft,
+          // maintenanceTotal: maintenance.toFixed(2),
+
+          electricityUnitRate,
+          electricityUnitsUsed,
+          // electricityTotalAmount,
+
+          // gst: gst.toFixed(2),
           totalUnitBill: (maintenance + gst + electricityTotalAmount).toFixed(
             2
           ),
         });
       }
 
+      // ---- Bill Stats ----
       const allBills = await Billing.find({ landlordId: landlord._id })
         .populate("unitId siteId")
         .lean();
@@ -325,6 +337,7 @@ console.log("Bill pagination", isPagination);
         .map((u) => u?.siteId?.siteName)
         .filter(Boolean)
         .join(", ");
+
       const unitNumbers = filteredUnits
         .map((u) => u?.unitNumber)
         .filter(Boolean)
@@ -333,44 +346,61 @@ console.log("Bill pagination", isPagination);
       summary.push({
         landlordId: landlord._id,
         landlordName: landlord.name,
+
         siteNames,
         unitNumbers,
+
         totalMaintenance: totalMaintenance.toFixed(2),
         totalGST: totalGST.toFixed(2),
         electricityAmount: totalElectricityAmount.toFixed(2),
         totalBillingAmount: totalAmount.toFixed(2),
+
         perDayMaintenance: perDayMaintenance.toFixed(2),
         monthDays: daysInMonth,
         billingTillToday: billingTillToday.toFixed(2),
+
         previousUnpaidBill: previousUnpaidBill.toFixed(2),
         paidCount: paidBills.length,
         unpaidCount: unpaidBills.length,
         paidBillTotal: paidBillTotal.toFixed(2),
-        unitDetails,
+
+        unitDetails, // ⬅️ FULL UNIT DATA
+
         fromDate: firstDay,
         toDate: now,
       });
     }
 
-    // --------- Pagination ---------
+    // ---- Pagination (Applied only when isPagination=true) ----
+    // let isPagination = req.query.isPagination || "true";
     let paginatedData = summary;
-    let totalPages = 1;
 
     if (isPagination === "true") {
-      const startIndex = (Number(page) - 1) * Number(limit);
-      const endIndex = startIndex + Number(limit);
-      paginatedData = summary.slice(startIndex, endIndex);
-      totalPages = Math.ceil(summary.length / Number(limit));
-    }
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
 
+      const startIndex = (page - 1) * limit;
+      const endIndex = page * limit;
+
+      paginatedData = summary.slice(startIndex, endIndex);
+
+      return res.status(200).json({
+        success: true,
+        message: "Landlord billing summary fetched successfully",
+        count: paginatedData.length,
+        total: summary.length,
+        page,
+        limit,
+        data: paginatedData,
+      });
+    }
+    // ---- No Pagination ----
     return res.status(200).json({
       success: true,
       message: "Landlord billing summary fetched successfully",
       count: summary.length,
-      totalPages,
-      currentPage: Number(page),
-      limit: Number(limit),
-      data: paginatedData,
+      total: summary.length,
+      data: summary,
     });
   } catch (error) {
     console.error("❌ getAllLandlordsBillingSummary Error:", error);
