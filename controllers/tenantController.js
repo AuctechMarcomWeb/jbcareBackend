@@ -15,7 +15,6 @@ export const addTenant = async (req, res) => {
       address,
       profilePic,
       siteId,
-      projectId,
       unitId,
       landlordId,
       addedBy,
@@ -24,6 +23,7 @@ export const addTenant = async (req, res) => {
       dob,
       idProof,
       isActive = true, // Default to true
+      parking
     } = req.body;
 
     // 🧩 Validation
@@ -86,6 +86,7 @@ export const addTenant = async (req, res) => {
       idProof,
       isActive,
       tenancyStartDate: new Date(),
+      parking
     });
 
     // ✅ Update unit reference & history

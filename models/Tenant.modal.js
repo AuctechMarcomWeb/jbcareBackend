@@ -61,6 +61,8 @@ const tenantSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     tenancyStartDate: { type: Date, default: Date.now },
     tenancyEndDate: { type: Date },
+    parking: { type: String },
+
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
