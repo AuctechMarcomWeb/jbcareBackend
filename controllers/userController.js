@@ -63,8 +63,14 @@ export const getUsers = async (req, res) => {
 
     const query = {};
 
+    // Role filter supports multiple roles
+    if (role) {
+      const roles = role.split(","); // supports "landlord,tenant"
+      query.role = { $in: roles };
+    }
     // 🧩 Filters
     if (role) query.role = role;
+
     if (name) query.name = { $regex: name, $options: "i" };
     if (phone) query.phone = { $regex: phone, $options: "i" };
     if (email) query.email = { $regex: email, $options: "i" };

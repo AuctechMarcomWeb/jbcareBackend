@@ -33,8 +33,8 @@ const ItemSchema = new mongoose.Schema(
     // ⭐ STATUS FIELD
     status: {
       type: String,
-      enum: ["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK"],
-      default: "IN_STOCK",
+      enum: ["IN STOCK", "LOW STOCK", "OUT OF STOCK"],
+      default: "IN STOCK",
     },
   },
   { timestamps: true }
@@ -46,14 +46,14 @@ ItemSchema.index({ productName: 1 });
 // ⭐ AUTO UPDATE status BEFORE SAVE
 ItemSchema.pre("save", function (next) {
   if (this.quantity === 0) {
-    this.status = "OUT_OF_STOCK";
+    this.status = "OUT OF STOCK";
   } else if (this.quantity < this.threshold) {
-    this.status = "LOW_STOCK";
+    this.status = "LOW STOCK";
   } else {
-    this.status = "IN_STOCK";
+    this.status = "IN STOCK";
   }
   next();
 });
 
 const StockItems = mongoose.model("StockItems", ItemSchema);
-module.exports = StockItems;
+export default StockItems;
