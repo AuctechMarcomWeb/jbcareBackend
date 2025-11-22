@@ -5,6 +5,7 @@ import Landlord from "../models/LandLord.modal.js";
 
 import MaintainCharges from "../models/MantainCharge.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
+import Tenant from "../models/Tenant.modal.js";
 
 // 🟢 CREATE BILL
 export const createBilling = async (req, res) => {
@@ -261,6 +262,7 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
         let billTo = "landlord";
         let hasActiveTenant = "No";
         let landlordStaying = "Yes";
+        let tenant = "";
 
         // Check if tenant exists in unit
         if (unit.tenantId) {
@@ -271,6 +273,10 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
           const activeTenantRecord = unit.tenantHistory?.find(
             (t) => t.isActive
           );
+
+          tenant = await Tenant.findById(activeTenantRecord?.tenantId).select(
+            "name email phone "
+          ) .lean();
 
           if (activeTenantRecord?.billTo) {
             billTo = activeTenantRecord.billTo; // "tenant" or "landlord"
@@ -285,7 +291,7 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
           hasActiveTenant,
           landlordStaying,
           billTo,
-
+          tenant,
           maintenanceRateType: maintainCharge?.rateType || "flat",
           maintenanceRateValue: maintainCharge?.rateValue || 0,
           maintenancePerSqft: maintenancePerSqft,
@@ -349,7 +355,6 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
 
         siteNames,
         unitNumbers,
-
         totalMaintenance: totalMaintenance.toFixed(2),
         totalGST: totalGST.toFixed(2),
         electricityAmount: totalElectricityAmount.toFixed(2),
