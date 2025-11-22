@@ -97,9 +97,9 @@ export const getStockItems = async (req, res) => {
     }
 
     const items = await StockItems.find(filter)
-      .populate("categoryId", "categoryName")
-      .populate("subCategoryId", "subCategoryName")
-      .populate("warehouseId", "name");
+      .populate("categoryId", "name")
+      .populate("subCategoryId", "name")
+      .populate("warehouseId", "name address");
 
     res.json({ success: true, data: items });
   } catch (error) {
