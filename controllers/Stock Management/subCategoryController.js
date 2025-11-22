@@ -11,12 +11,50 @@ export const createSubCategory = async (req, res) => {
 };
 
 export const getSubCategories = async (req, res) => {
-  const { categoryId, search } = req.query;
-  const filter = {};
-  if (categoryId) filter.categoryId = categoryId;
-  if (search) filter.name = { $regex: search, $options: "i" };
-  const list = await SubCategory.find(filter).sort({ name: 1 });
-  res.json({ success: true, data: list });
+  try {
+    const { categoryId, search, page = 1, limit = 10 } = req.query;
+
+    const filter = {};
+
+    // Filter by categoryId if provided
+    if (categoryId) filter.categoryId = categoryId;
+
+    // Search in both name & description
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Count total documents based on applied filters
+    const totalRecords = await SubCategory.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // Fetch paginated list
+    const list = await SubCategory.find(filter)
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    res.json({
+      success: true,
+      data: list,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        totalRecords,
+        totalPages,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 export const updateSubCategory = async (req, res) => {

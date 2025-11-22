@@ -16,11 +16,44 @@ export const createCategory = async (req, res) => {
 };
 
 export const getCategories = async (req, res) => {
-  const { search } = req.query;
-  const filter = {};
-  if (search) filter.name = { $regex: search, $options: "i" };
-  const cats = await Category.find(filter).sort({ name: 1 });
-  res.json({ success: true, data: cats });
+  try {
+    const { search, page = 1, limit = 10 } = req.query;
+
+    const filter = {};
+
+    // 🔍 Search in both name & description using OR condition
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    // 📌 Get total matching documents
+    const totalRecords = await Category.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // 📌 Fetch paginated categories
+    const cats = await Category.find(filter)
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    res.json({
+      success: true,
+      data: cats,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        totalRecords,
+        totalPages,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 export const updateCategory = async (req, res) => {

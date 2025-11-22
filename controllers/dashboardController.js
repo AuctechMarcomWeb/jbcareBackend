@@ -1,130 +1,155 @@
-import Unit from "../models/masters/Unit.modal.js";
-import Billing from "../models/Billing.modal.js";
 import User from "../models/User.modal.js";
-import Complaint from "../models/Complaints.modal.js"; // <-- Add this
+import Complaint from "../models/Complaints.modal.js";
+import Billing from "../models/Billing.modal.js";
+import StockItems from "../models/Stock management/StockItems.modal.js";
+import Landlord from "../models/LandLord.modal.js";
+import Tenant from "../models/Tenant.modal.js";
+import Supervisor from "../models/Supervisors.modal.js";
 
 export const getDashboardStats = async (req, res) => {
   try {
-    const now = new Date();
+    const { filterType } = req.query;
 
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    let dateFilter = {};
+    if (filterType === "month") {
+      const now = new Date();
+      dateFilter = {
+        $gte: new Date(now.getFullYear(), now.getMonth(), 1),
+        $lte: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+      };
+    } else if (filterType === "year") {
+      const now = new Date();
+      dateFilter = {
+        $gte: new Date(now.getFullYear(), 0, 1),
+        $lte: new Date(now.getFullYear(), 11, 31),
+      };
+    }
 
-    // ----------------------------------------------------
-    // 🧑‍🤝‍🧑 USER STATS
-    // ----------------------------------------------------
-    const totalUsers = await User.countDocuments();
+    // ----------------------------------------------------------
+    // 🧑‍🤝‍🧑 USERS → based on landlords + tenants + supervisors
+    // ----------------------------------------------------------
+    const landlordActive = await Landlord.countDocuments({ isActive: true });
+    const landlordInactive = await Landlord.countDocuments({ isActive: false });
 
-    // ----------------------------------------------------
-    // 🏠 PROPERTY STATS
-    // ----------------------------------------------------
-    const totalUnits = await Unit.countDocuments();
+    const tenantActive = await Tenant.countDocuments({ isActive: true });
+    const tenantInactive = await Tenant.countDocuments({ isActive: false });
 
-    const soldProperties = await Unit.countDocuments({
-      landlordId: { $ne: null },
+    const supervisorActive = await Supervisor.countDocuments({
+      isActive: true,
+    });
+    const supervisorInactive = await Supervisor.countDocuments({
+      isActive: false,
     });
 
-    const availableProperties = await Unit.countDocuments({
-      landlordId: null,
-    });
+    const totalActiveUsers = landlordActive + tenantActive + supervisorActive;
+    const totalInactiveUsers =
+      landlordInactive + tenantInactive + supervisorInactive;
 
-    // ----------------------------------------------------
+    const totalUsers =
+      landlordActive +
+      landlordInactive +
+      tenantActive +
+      tenantInactive +
+      supervisorActive +
+      supervisorInactive;
+
+    // ----------------------------------------------------------
     // 🔥 COMPLAINT STATS
-    // ----------------------------------------------------
-    const totalComplaints = await Complaint.countDocuments();
+    // ----------------------------------------------------------
+    const complaintDateQuery = filterType ? { createdAt: dateFilter } : {};
 
-    const totalResolvedComplaints = await Complaint.countDocuments({
-      status: "Resolved",
+    const totalComplaints = await Complaint.countDocuments(complaintDateQuery);
+    const totalResolvedBySupervisor = await Complaint.countDocuments({
+      status: "Closed By Supervisor",
+      ...complaintDateQuery,
+    });
+    const totalClosedByHelpDesk = await Complaint.countDocuments({
+      status: "Closed By Help Desk",
+      ...complaintDateQuery,
+    });
+    const totalRepushedComplaints = await Complaint.countDocuments({
+      status: "Repush By Help Desk",
+      ...complaintDateQuery,
     });
 
-    const totalClosedComplaints = await Complaint.countDocuments({
-      status: "Closed",
+    // ----------------------------------------------------------
+    // 💰 BILLING STATS
+    // ----------------------------------------------------------
+    const billingDateQuery = filterType ? { generatedOn: dateFilter } : {};
+
+    const totalBillingAgg = await Billing.aggregate([
+      { $match: billingDateQuery },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]);
+    const totalBilling = totalBillingAgg[0]?.total || 0;
+
+    const totalPaidBillingAgg = await Billing.aggregate([
+      { $match: { ...billingDateQuery, status: "Paid" } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]);
+    const totalPaidBilling = totalPaidBillingAgg[0]?.total || 0;
+
+    const totalUnpaidBillingAgg = await Billing.aggregate([
+      { $match: { ...billingDateQuery, status: "Unpaid" } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]);
+    const totalUnpaidBilling = totalUnpaidBillingAgg[0]?.total || 0;
+
+    // ----------------------------------------------------------
+    // 📦 INVENTORY STATS
+    // ----------------------------------------------------------
+    const inventoryQuery = filterType ? { createdAt: dateFilter } : {};
+
+    const totalItems = await StockItems.countDocuments({
+      isDeleted: false,
+      ...inventoryQuery,
+    });
+    const totalInStockItems = await StockItems.countDocuments({
+      isDeleted: false,
+      status: "IN STOCK",
+      ...inventoryQuery,
+    });
+    const totalLowStockItems = await StockItems.countDocuments({
+      isDeleted: false,
+      status: "LOW STOCK",
+      ...inventoryQuery,
+    });
+    const totalOutOfStockItems = await StockItems.countDocuments({
+      isDeleted: false,
+      status: "OUT OF STOCK",
+      ...inventoryQuery,
     });
 
-    // ----------------------------------------------------
-    // 💰 BILLING STATS (OVERALL)
-    // ----------------------------------------------------
-    const allBillingAgg = await Billing.aggregate([
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-    ]);
-    const totalBilling = allBillingAgg[0]?.total || 0;
-
-    const paidBillingAgg = await Billing.aggregate([
-      { $match: { status: "Paid" } },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-    ]);
-    const totalPaidBilling = paidBillingAgg[0]?.total || 0;
-
-    const unpaidBillingAgg = await Billing.aggregate([
-      { $match: { status: "Unpaid" } },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-    ]);
-    const totalUnpaidBilling = unpaidBillingAgg[0]?.total || 0;
-
-    // ----------------------------------------------------
-    // 💰 BILLING STATS (MONTHLY)
-    // ----------------------------------------------------
-    const monthlyBillingAgg = await Billing.aggregate([
-      { $match: { generatedOn: { $gte: firstDay, $lte: lastDay } } },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-    ]);
-    const totalMonthlyBilling = monthlyBillingAgg[0]?.total || 0;
-
-    const monthlyPaidAgg = await Billing.aggregate([
-      {
-        $match: {
-          generatedOn: { $gte: firstDay, $lte: lastDay },
-          status: "Paid",
-        },
-      },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-    ]);
-    const totalMonthlyBillingPaid = monthlyPaidAgg[0]?.total || 0;
-
-    const monthlyUnpaidAgg = await Billing.aggregate([
-      {
-        $match: {
-          generatedOn: { $gte: firstDay, $lte: lastDay },
-          status: "Unpaid",
-        },
-      },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-    ]);
-    const totalMonthlyBillingUnpaid = monthlyUnpaidAgg[0]?.total || 0;
-
-    // ----------------------------------------------------
-    // 📊 RESPONSE (READY FOR FRONTEND)
-    // ----------------------------------------------------
     return res.status(200).json({
       success: true,
+      filterApplied: filterType || "overall",
       data: {
-        // USERS
+        // Users
         totalUsers,
+        totalActiveUsers,
+        totalInactiveUsers,
 
-        // PROPERTIES
-        totalUnits,
-        soldProperties,
-        availableProperties,
-
-        // COMPLAINTS
+        // Complaints
         totalComplaints,
-        totalResolvedComplaints,
-        totalClosedComplaints,
+        totalResolvedBySupervisor,
+        totalClosedByHelpDesk,
+        totalRepushedComplaints,
 
-        // BILLING (OVERALL)
+        // Billing
         totalBilling,
         totalPaidBilling,
         totalUnpaidBilling,
 
-        // BILLING (MONTHLY)
-        totalMonthlyBilling,
-        totalMonthlyBillingPaid,
-        totalMonthlyBillingUnpaid,
+        // Inventory
+        totalItems,
+        totalInStockItems,
+        totalLowStockItems,
+        totalOutOfStockItems,
       },
     });
   } catch (error) {
     console.error("Dashboard API Error:", error);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "Failed to fetch dashboard stats",
       error: error.message,
