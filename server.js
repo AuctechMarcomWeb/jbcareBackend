@@ -47,7 +47,7 @@ app.use("/api/supervisors", supervisorRoutes);
 app.use("/api/maintain-charges", maintainCharge);
 app.use("/api/maintenance-bill", maintenanceBillRoutes);
 app.use("/api/billing", billingRoutes);
-// app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/problem-types", problemTypeRoutes);

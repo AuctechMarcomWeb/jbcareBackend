@@ -1,5 +1,4 @@
-
- import Warehouse from "../../models/masters/Warehouse.modal.js";
+import Warehouse from "../../models/masters/Warehouse.modal.js";
 
 export const createWarehouse = async (req, res) => {
   try {
@@ -13,19 +12,39 @@ export const createWarehouse = async (req, res) => {
 
 export const getWarehouses = async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, page = 1, limit = 10 } = req.query;
 
-    const filter = { isDeleted: false }; // 👈 show only active (not deleted)
+    const filter = { isDeleted: false }; // show only active warehouses
 
+    // 🔍 Search by name OR address
     if (search) {
-      filter.name = { $regex: search, $options: "i" };
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { address: { $regex: search, $options: "i" } },
+      ];
     }
 
-    const list = await Warehouse.find(filter).sort({ name: 1 });
+    const skip = (page - 1) * limit;
+
+    // 📌 Total warehouses count based on filter
+    const totalRecords = await Warehouse.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // 📌 Fetch paginated warehouses
+    const list = await Warehouse.find(filter)
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(Number(limit));
 
     return res.json({
       success: true,
       data: list,
+
+        page: Number(page),
+        limit: Number(limit),
+        totalRecords,
+        totalPages,
+
     });
   } catch (error) {
     return res.status(500).json({
