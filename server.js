@@ -25,6 +25,7 @@ import problemTypeRoutes from "./routes/masters/problemTypeRoutes.js";
 import categoryRoutes from './routes/masters/categoryRoutes.js'
 import subCategoryRoutes from './routes/masters/subCategoryRoutes.js'
 import warehouseRoutes from './routes/masters/warehouseRoutes.js'
+import stocksRoutes from './routes/Stocks/stocksRoutes.js'
 
 dotenv.config();
 connectDB(); 
@@ -53,6 +54,7 @@ app.use("/api/problem-types", problemTypeRoutes);
 app.use("/api/category", categoryRoutes);
 app.use("/api/sub-category", subCategoryRoutes);
 app.use("/api/warehouse", warehouseRoutes);
+app.use("/api/stocks", stocksRoutes);
 
 app.use("/api", uploadRoutes);
 

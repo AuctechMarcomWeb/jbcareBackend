@@ -1,4 +1,17 @@
-exports.createStockItem = async (req, res) => {
+import Category from "../../models/masters/Category.modal.js";
+import SubCategory from "../../models/masters/SubCategory.modal.js";
+import Warehouse from "../../models/masters/Warehouse.modal.js";
+import StockItems from "../../models/Stock management/StockItems.modal.js";
+
+const getStockStatus = (quantity, threshold) => {
+  if (quantity === undefined || threshold === undefined) return "Unknown";
+
+  if (quantity <= 0) return "OUT OF STOCK";
+  if (quantity <= threshold) return "LOW STOCK";
+  return "IN STOCK";
+};
+
+export const createStockItem = async (req, res) => {
   try {
     const {
       categoryId,
@@ -11,6 +24,7 @@ exports.createStockItem = async (req, res) => {
       quantity,
     } = req.body;
 
+    // Required field validation
     if (!categoryId || !subCategoryId || !productName || !warehouseId) {
       return res.status(400).json({
         success: false,
@@ -19,8 +33,37 @@ exports.createStockItem = async (req, res) => {
       });
     }
 
-    const status = getStockStatus(quantity, threshold);
+    // 🔍 Validate Category exists
+    const category = await Category.findById(categoryId);
+    if (!category) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid categoryId — category not found",
+      });
+    }
 
+    // 🔍 Validate Sub-category exists
+    const subCategory = await SubCategory.findById(subCategoryId);
+    if (!subCategory) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid subCategoryId — sub-category not found",
+      });
+    }
+
+    // 🔍 Validate Warehouse exists
+    const warehouse = await Warehouse.findById(warehouseId);
+    if (!warehouse) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid warehouseId — warehouse not found",
+      });
+    }
+
+    // Calculate Status
+    const status = getStockStatus(Number(quantity), Number(threshold));
+
+    // Create Stock Item
     const newItem = await StockItems.create({
       categoryId,
       subCategoryId,
@@ -33,14 +76,14 @@ exports.createStockItem = async (req, res) => {
       status,
     });
 
-    res.json({ success: true, data: newItem });
+    return res.json({ success: true, data: newItem });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
-exports.getStockItems = async (req, res) => {
+export const getStockItems = async (req, res) => {
   try {
     const { search, warehouseId, status } = req.query;
 
@@ -65,7 +108,7 @@ exports.getStockItems = async (req, res) => {
   }
 };
 
-exports.getStockItemById = async (req, res) => {
+export const getStockItemById = async (req, res) => {
   try {
     const item = await StockItems.findOne({
       _id: req.params.id,
@@ -85,26 +128,58 @@ exports.getStockItemById = async (req, res) => {
   }
 };
 
-exports.updateStockItem = async (req, res) => {
+export const updateStockItem = async (req, res) => {
   try {
-    const { quantity, threshold } = req.body;
+    const { qty, type, quantity, threshold } = req.body;
 
-    const existing = await StockItems.findById(req.params.id);
-    if (!existing)
+    // Find only if NOT deleted
+    const item = await StockItems.findOne({
+      _id: req.params.id,
+      isDeleted: false,
+    });
+
+    if (!item) {
       return res.status(404).json({
         success: false,
-        message: "Item not found",
+        message: "Item does not exist or has been deleted",
       });
+    }
 
-    const newQty = quantity !== undefined ? quantity : existing.quantity;
-    const newThreshold =
-      threshold !== undefined ? threshold : existing.threshold;
+    let newQty = item.quantity;
 
+    // 🔥 Handle stock increase / decrease
+    if (qty !== undefined && type) {
+      if (type === "increase") newQty = item.quantity + qty;
+      else if (type === "decrease") {
+        if (item.quantity < qty) {
+          return res.status(400).json({
+            success: false,
+            message: "Not enough stock",
+          });
+        }
+        newQty = item.quantity - qty;
+      }
+    }
+
+    // 🔥 Handle manual quantity update
+    if (quantity !== undefined) newQty = quantity;
+
+    // 🔥 Handle threshold update
+    const newThreshold = threshold !== undefined ? threshold : item.threshold;
+
+    // 🔥 Auto status update
     const status = getStockStatus(newQty, newThreshold);
+
+    const updatePayload = {
+      ...req.body,
+      quantity: newQty,
+      threshold: newThreshold,
+      status,
+    };
 
     const updated = await StockItems.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, status },
+      updatePayload,
       { new: true }
     );
 
@@ -115,7 +190,7 @@ exports.updateStockItem = async (req, res) => {
   }
 };
 
-exports.deleteStockItem = async (req, res) => {
+export const deleteStockItem = async (req, res) => {
   try {
     const deleted = await StockItems.findByIdAndUpdate(
       req.params.id,
@@ -127,61 +202,59 @@ exports.deleteStockItem = async (req, res) => {
       return res.status(404).json({ success: false, message: "Not found" });
 
     res.json({ success: true, message: "Item soft deleted", data: deleted });
-
   } catch (error) {
     console.log(error);
     res.status(500).json({ success: false });
   }
 };
 
-exports.increaseStock = async (req, res) => {
-  try {
-    const { qty } = req.body;
+// export const increaseStock = async (req, res) => {
+//   try {
+//     const { qty } = req.body;
 
-    const item = await StockItems.findById(req.params.id);
-    if (!item) return res.status(404).json({ success: false, message: "Not found" });
+//     const item = await StockItems.findById(req.params.id);
+//     if (!item)
+//       return res.status(404).json({ success: false, message: "Not found" });
 
-    const newQty = item.quantity + qty;
-    const status = getStockStatus(newQty, item.threshold);
+//     const newQty = item.quantity + qty;
+//     const status = getStockStatus(newQty, item.threshold);
 
-    item.quantity = newQty;
-    item.status = status;
-    await item.save();
+//     item.quantity = newQty;
+//     item.status = status;
+//     await item.save();
 
-    res.json({ success: true, data: item });
+//     res.json({ success: true, data: item });
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).json({ success: false });
+//   }
+// };
 
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ success: false });
-  }
-};
+// export const decreaseStock = async (req, res) => {
+//   try {
+//     const { qty } = req.body;
 
-exports.decreaseStock = async (req, res) => {
-  try {
-    const { qty } = req.body;
+//     const item = await StockItems.findById(req.params.id);
+//     if (!item)
+//       return res.status(404).json({ success: false, message: "Not found" });
 
-    const item = await StockItems.findById(req.params.id);
-    if (!item) return res.status(404).json({ success: false, message: "Not found" });
+//     if (item.quantity < qty)
+//       return res.status(400).json({
+//         success: false,
+//         message: "Not enough stock",
+//       });
 
-    if (item.quantity < qty)
-      return res.status(400).json({
-        success: false,
-        message: "Not enough stock",
-      });
+//     const newQty = item.quantity - qty;
+//     const status = getStockStatus(newQty, item.threshold);
 
-    const newQty = item.quantity - qty;
-    const status = getStockStatus(newQty, item.threshold);
+//     item.quantity = newQty;
+//     item.status = status;
 
-    item.quantity = newQty;
-    item.status = status;
+//     await item.save();
 
-    await item.save();
-
-    res.json({ success: true, data: item });
-
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ success: false });
-  }
-};
-
+//     res.json({ success: true, data: item });
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).json({ success: false });
+//   }
+// };
