@@ -6,6 +6,12 @@ const WarehouseSchema = new mongoose.Schema(
     type: { type: String },
     address: String,
     isDeleted: { type: Boolean, default: false },
+    sites: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Site",
+      },
+    ],
   },
   { timestamps: true }
 );

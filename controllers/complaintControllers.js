@@ -6,7 +6,6 @@ import { sendError, sendSuccess } from "../utils/responseHandler.js";
  */
 import User from "../models/User.modal.js";
 import Site from "../models/masters/site.modal.js";
-import Project from "../models/masters/Project.modal.js";
 import mongoose from "mongoose";
 import Unit from "../models/masters/Unit.modal.js";
 import Supervisor from "../models/Supervisors.modal.js";
@@ -256,7 +255,10 @@ export const updateComplaint = async (req, res) => {
     if (action === "raiseMaterialDemand") {
       if (!materialDemand)
         return sendError(res, "Material demand details required");
-
+      // Detect if input is ObjectId
+      if (mongoose.Types.ObjectId.isValid(materialDemand.materialName)) {
+        req.body.materialName = new mongoose.Types.ObjectId(materialDemand.materialName);
+      }
       historyEntry.materialDemand = materialDemand;
     }
 

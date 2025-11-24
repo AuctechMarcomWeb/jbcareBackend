@@ -2,6 +2,15 @@ import Warehouse from "../../models/masters/Warehouse.modal.js";
 
 export const createWarehouse = async (req, res) => {
   try {
+    const { sites } = req.body;
+
+    // Ensure sites is always an array
+    if (sites && !Array.isArray(sites)) {
+      return res.status(400).json({
+        success: false,
+        message: "sites must be an array",
+      });
+    }
     const w = new Warehouse(req.body);
     await w.save();
     res.status(201).json({ success: true, data: w });
@@ -12,15 +21,26 @@ export const createWarehouse = async (req, res) => {
 
 export const getWarehouses = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10, isPagination = "true" } = req.query;
+    const {
+      search,
+      page = 1,
+      limit = 10,
+      isPagination = "true",
+      siteId,
+    } = req.query;
 
     const filter = { isDeleted: false };
+
+    if (siteId) {
+      filter.sites = siteId;
+    }
 
     // 🔍 Search by name OR address
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
         { address: { $regex: search, $options: "i" } },
+        { sites: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -35,7 +55,7 @@ export const getWarehouses = async (req, res) => {
 
     // ⚡ If pagination = false → return full data
     if (isPagination === "false") {
-      list = await Warehouse.find(filter).sort({ name: 1 });
+      list = await Warehouse.find(filter).sort({ name: 1 }).populate("sites");
 
       return res.json({
         success: true,
@@ -51,7 +71,8 @@ export const getWarehouses = async (req, res) => {
     list = await Warehouse.find(filter)
       .sort({ name: 1 })
       .skip(skip)
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .populate("sites");
 
     return res.json({
       success: true,
