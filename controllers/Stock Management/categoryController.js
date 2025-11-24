@@ -17,11 +17,11 @@ export const createCategory = async (req, res) => {
 
 export const getCategories = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10 } = req.query;
+    const { search, page = 1, limit = 10, isPagination = "true" } = req.query;
 
     const filter = {};
 
-    // 🔍 Search in both name & description using OR condition
+    // 🔍 Search in name or description
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -29,21 +29,39 @@ export const getCategories = async (req, res) => {
       ];
     }
 
-    const skip = (page - 1) * limit;
-
-    // 📌 Get total matching documents
+    // 📌 Count total documents (for pagination or full list)
     const totalRecords = await Category.countDocuments(filter);
     const totalPages = Math.ceil(totalRecords / limit);
 
-    // 📌 Fetch paginated categories
-    const cats = await Category.find(filter)
+    let list;
+
+    // ⚡ If pagination disabled → return full list
+    if (isPagination === "false") {
+      list = await Category.find(filter).sort({ name: 1 });
+
+      return res.json({
+        success: true,
+        data: list,
+        pagination: {
+          page: null,
+          limit: null,
+          totalRecords: list.length,
+          totalPages: 1,
+        },
+      });
+    }
+
+    // ⚡ Pagination enabled → apply skip/limit
+    const skip = (page - 1) * limit;
+
+    list = await Category.find(filter)
       .sort({ name: 1 })
       .skip(skip)
       .limit(Number(limit));
 
-    res.json({
+    return res.json({
       success: true,
-      data: cats,
+      data: list,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -52,7 +70,10 @@ export const getCategories = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 

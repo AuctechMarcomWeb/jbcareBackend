@@ -2,6 +2,7 @@ import Category from "../../models/masters/Category.modal.js";
 import SubCategory from "../../models/masters/SubCategory.modal.js";
 import Warehouse from "../../models/masters/Warehouse.modal.js";
 import StockItems from "../../models/Stock management/StockItems.modal.js";
+import { sendSuccess } from "../../utils/responseHandler.js";
 
 const getStockStatus = (quantity, threshold) => {
   if (quantity === undefined || threshold === undefined) return "Unknown";
@@ -76,7 +77,15 @@ export const createStockItem = async (req, res) => {
       status,
     });
 
-    return res.json({ success: true, data: newItem });
+    return sendSuccess(
+      res,
+      "Stock created successfully",
+      {
+        success: true,
+        newItem,
+      },
+      200
+    );
   } catch (error) {
     console.error(error);
     return res.status(500).json({ success: false, message: "Server Error" });
@@ -85,26 +94,80 @@ export const createStockItem = async (req, res) => {
 
 export const getStockItems = async (req, res) => {
   try {
-    const { search, warehouseId, status } = req.query;
+    const {
+      search,
+      warehouseId,
+      status,
+      categoryId,
+      subCategoryId,
+      page = 1,
+      limit = 10,
+      isPagination = "true",
+    } = req.query;
 
     const filter = { isDeleted: false };
 
     if (warehouseId) filter.warehouseId = warehouseId;
     if (status) filter.status = status;
+    if (categoryId) filter.categoryId = categoryId;
+    if (subCategoryId) filter.subCategoryId = subCategoryId;
 
     if (search) {
       filter.productName = { $regex: search, $options: "i" };
     }
 
-    const items = await StockItems.find(filter)
+    // 📌 Total matching records
+    const totalRecords = await StockItems.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    let list;
+
+    // ⚡ No Pagination: return full list
+    if (isPagination === "false") {
+      list = await StockItems.find(filter)
+        .sort({ productName: 1 })
+        .populate("categoryId", "name")
+        .populate("subCategoryId", "name")
+        .populate("warehouseId", "name address");
+
+      return res.json({
+        success: true,
+        message: "stock items fetched successfully",
+        data: list,
+        pagination: {
+          page: null,
+          limit: null,
+          totalRecords: list.length,
+          totalPages: 1,
+        },
+      });
+    }
+
+    // ⚡ Pagination: skip & limit
+    const skip = (page - 1) * limit;
+
+    list = await StockItems.find(filter)
+      .sort({ productName: 1 })
+      .skip(skip)
+      .limit(Number(limit))
       .populate("categoryId", "name")
       .populate("subCategoryId", "name")
       .populate("warehouseId", "name address");
 
-    res.json({ success: true, data: items });
+    return res.json({
+      success: true,
+      message: "stock items fetched successfully",
+      data: list,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        totalRecords,
+        totalPages,
+      },
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -120,8 +183,7 @@ export const getStockItemById = async (req, res) => {
         success: false,
         message: "Stock item not found",
       });
-
-    res.json({ success: true, data: item });
+    return sendSuccess(res, "Stock item fetched",{ success: true, data: item }, 200)
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false });
@@ -183,7 +245,8 @@ export const updateStockItem = async (req, res) => {
       { new: true }
     );
 
-    res.json({ success: true, data: updated });
+    // res.json({ success: true, data: updated });
+    return sendSuccess(res, "Stock Item Updated Successfully", updated, 200);
   } catch (error) {
     console.log(error);
     res.status(500).json({ success: false });
