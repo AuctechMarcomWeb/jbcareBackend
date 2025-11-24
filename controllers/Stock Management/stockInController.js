@@ -8,7 +8,7 @@ const getStockStatus = (quantity, threshold) => {
   if (quantity === undefined || threshold === undefined) return "Unknown";
 
   if (quantity <= 0) return "OUT OF STOCK";
-  if (quantity <= threshold) return "LOW STOCK";
+  if (quantity <= threshold && quantity !==  0) return "LOW STOCK";
   return "IN STOCK";
 };
 
