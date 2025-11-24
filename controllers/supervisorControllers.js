@@ -121,7 +121,7 @@ export const getSupervisors = async (req, res) => {
 
     addObjectIdFilter("siteId", siteId);
     // addObjectIdFilter("projectId", projectId);
-    addObjectIdFilter("unitId", unitId);
+    // addObjectIdFilter("unitId", unitId);
 
     if (name) {
       filters.name = { $regex: name, $options: "i" };
@@ -149,7 +149,7 @@ export const getSupervisors = async (req, res) => {
       supervisors = await Supervisor.find(filters)
         .populate("siteId", "siteName")
         // .populate("projectId", "projectName")
-        .populate("unitId", "unitNumber")
+        // .populate("unitId", "unitNumber")
         .sort(sortConfig)
         .skip(skip)
         .limit(Number(limit));
@@ -165,7 +165,7 @@ export const getSupervisors = async (req, res) => {
     supervisors = await Supervisor.find(filters)
       .populate("siteId", "siteName")
       // .populate("projectId", "projectName")
-      .populate("unitId", "unitNumber")
+      // .populate("unitId", "unitNumber")
       .sort(sortConfig);
 
     return sendSuccess(res, "Supervisors fetched successfully", {
@@ -190,7 +190,7 @@ export const getSupervisorById = async (req, res) => {
     const supervisor = await Supervisor.findById(req.params.id)
       .populate("siteId") // populate specific fields
       // .populate("projectId")
-      .populate("unitId");
+      // .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
     return sendSuccess(res, "Fetched the supervisor by id", supervisor, 200);
   } catch (err) {
@@ -216,7 +216,7 @@ export const updateSupervisor = async (req, res) => {
     )
       .populate("siteId") // populate specific fields
       // .populate("projectId")
-      .populate("unitId");
+      // .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
     return sendSuccess(res, "Supervisor updated successfully", supervisor, 200);
   } catch (err) {
