@@ -27,6 +27,11 @@ const ItemSchema = new mongoose.Schema(
 
     quantity: { type: Number, default: 0 },
 
+    // ⭐ NEW FIELD
+    newStockReceivedDate: { type: Date },
+
+    receivedBy: { type: String, trim: true },
+
     // ⭐ SOFT DELETE
     isDeleted: { type: Boolean, default: false },
 
