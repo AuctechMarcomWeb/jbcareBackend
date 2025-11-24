@@ -40,7 +40,7 @@ export const createSupervisor = async (req, res) => {
       return sendError(res, "Email must be a string", 400);
     if (!siteId) return sendError(res, "siteId is required", 400);
     // if (!projectId) return sendError(res, "projectId is required", 400);
-    if (!unitId) return sendError(res, "unitId is required", 400);
+    // if (!unitId) return sendError(res, "unitId is required", 400);
     if (
       !verificationDocuments ||
       !Array.isArray(verificationDocuments) ||
@@ -75,7 +75,7 @@ export const createSupervisor = async (req, res) => {
       password: "ABC123",
       siteId,
       // projectId,
-      unitId, // single unit
+      // unitId, // single unit
     };
 
     const user = await createUser(userPayload); // helper should return created user document
@@ -99,7 +99,7 @@ export const getSupervisors = async (req, res) => {
     const {
       siteId,
       // projectId,
-      unitId,
+      // unitId,
       name,
       phone,
       isActive,
