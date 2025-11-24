@@ -12,14 +12,20 @@ export const createSubCategory = async (req, res) => {
 
 export const getSubCategories = async (req, res) => {
   try {
-    const { categoryId, search, page = 1, limit = 10 } = req.query;
+    const {
+      categoryId,
+      search,
+      page = 1,
+      limit = 10,
+      isPagination = "true",
+    } = req.query;
 
     const filter = {};
 
     // Filter by categoryId if provided
     if (categoryId) filter.categoryId = categoryId;
 
-    // Search in both name & description
+    // Search by name or description
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -27,19 +33,37 @@ export const getSubCategories = async (req, res) => {
       ];
     }
 
-    const skip = (page - 1) * limit;
-
-    // Count total documents based on applied filters
+    // Total count for pagination (used for both cases)
     const totalRecords = await SubCategory.countDocuments(filter);
     const totalPages = Math.ceil(totalRecords / limit);
 
-    // Fetch paginated list
-    const list = await SubCategory.find(filter)
+    let list;
+
+    // ⚡ If pagination is disabled, return full list
+    if (isPagination === "false") {
+      list = await SubCategory.find(filter).sort({ name: 1 });
+
+      return res.json({
+        success: true,
+        data: list,
+        pagination: {
+          page: null,
+          limit: null,
+          totalRecords: list.length,
+          totalPages: 1,
+        },
+      });
+    }
+
+    // ⚡ If pagination is enabled
+    const skip = (page - 1) * limit;
+
+    list = await SubCategory.find(filter)
       .sort({ name: 1 })
       .skip(skip)
       .limit(Number(limit));
 
-    res.json({
+    return res.json({
       success: true,
       data: list,
       pagination: {
@@ -50,7 +74,7 @@ export const getSubCategories = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message,
     });

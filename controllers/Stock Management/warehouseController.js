@@ -12,9 +12,9 @@ export const createWarehouse = async (req, res) => {
 
 export const getWarehouses = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10 } = req.query;
+    const { search, page = 1, limit = 10, isPagination = "true" } = req.query;
 
-    const filter = { isDeleted: false }; // show only active warehouses
+    const filter = { isDeleted: false };
 
     // 🔍 Search by name OR address
     if (search) {
@@ -24,14 +24,31 @@ export const getWarehouses = async (req, res) => {
       ];
     }
 
-    const skip = (page - 1) * limit;
+    // 📌 Default pagination values
+    let skip = (page - 1) * limit;
 
     // 📌 Total warehouses count based on filter
     const totalRecords = await Warehouse.countDocuments(filter);
     const totalPages = Math.ceil(totalRecords / limit);
 
-    // 📌 Fetch paginated warehouses
-    const list = await Warehouse.find(filter)
+    let list;
+
+    // ⚡ If pagination = false → return full data
+    if (isPagination === "false") {
+      list = await Warehouse.find(filter).sort({ name: 1 });
+
+      return res.json({
+        success: true,
+        data: list,
+        page: null,
+        limit: null,
+        totalRecords: list.length,
+        totalPages: 1,
+      });
+    }
+
+    // ⚡ If pagination = true → use skip & limit
+    list = await Warehouse.find(filter)
       .sort({ name: 1 })
       .skip(skip)
       .limit(Number(limit));
@@ -40,11 +57,10 @@ export const getWarehouses = async (req, res) => {
       success: true,
       data: list,
 
-        page: Number(page),
-        limit: Number(limit),
-        totalRecords,
-        totalPages,
-
+      page: Number(page),
+      limit: Number(limit),
+      totalRecords,
+      totalPages,
     });
   } catch (error) {
     return res.status(500).json({
