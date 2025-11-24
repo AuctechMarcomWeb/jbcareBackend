@@ -8,7 +8,7 @@ const getStockStatus = (quantity, threshold) => {
   if (quantity === undefined || threshold === undefined) return "Unknown";
 
   if (quantity <= 0) return "OUT OF STOCK";
-  if (quantity <= threshold && quantity !==  0) return "LOW STOCK";
+  if (quantity <= threshold && quantity !== 0) return "LOW STOCK";
   return "IN STOCK";
 };
 
@@ -23,6 +23,7 @@ export const createStockItem = async (req, res) => {
       threshold,
       warehouseId,
       quantity,
+      receivedBy,
     } = req.body;
 
     // Required field validation
@@ -75,6 +76,9 @@ export const createStockItem = async (req, res) => {
       warehouseId,
       quantity,
       status,
+      // ⭐ Add new fields
+      receivedBy: req.body.receivedBy || null,
+      newStockReceivedDate: quantity ? new Date() : null,
     });
 
     return sendSuccess(
@@ -183,7 +187,12 @@ export const getStockItemById = async (req, res) => {
         success: false,
         message: "Stock item not found",
       });
-    return sendSuccess(res, "Stock item fetched",{ success: true, data: item }, 200)
+    return sendSuccess(
+      res,
+      "Stock item fetched",
+      { success: true, data: item },
+      200
+    );
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false });
@@ -192,7 +201,7 @@ export const getStockItemById = async (req, res) => {
 
 export const updateStockItem = async (req, res) => {
   try {
-    const { qty, type, quantity, threshold } = req.body;
+    const { qty, type, quantity, threshold, receivedBy } = req.body;
 
     // Find only if NOT deleted
     const item = await StockItems.findOne({
@@ -208,11 +217,14 @@ export const updateStockItem = async (req, res) => {
     }
 
     let newQty = item.quantity;
+    let quantityChanged = false;
 
     // 🔥 Handle stock increase / decrease
     if (qty !== undefined && type) {
-      if (type === "increase") newQty = item.quantity + qty;
-      else if (type === "decrease") {
+      if (type === "increase") {
+        newQty = item.quantity + qty;
+        quantityChanged = true;
+      } else if (type === "decrease") {
         if (item.quantity < qty) {
           return res.status(400).json({
             success: false,
@@ -220,11 +232,17 @@ export const updateStockItem = async (req, res) => {
           });
         }
         newQty = item.quantity - qty;
+        quantityChanged = true;
       }
     }
 
     // 🔥 Handle manual quantity update
-    if (quantity !== undefined) newQty = quantity;
+    if (quantity !== undefined) {
+      if (quantity !== item.quantity) {
+        quantityChanged = true;
+      }
+      newQty = quantity;
+    }
 
     // 🔥 Handle threshold update
     const newThreshold = threshold !== undefined ? threshold : item.threshold;
@@ -238,6 +256,16 @@ export const updateStockItem = async (req, res) => {
       threshold: newThreshold,
       status,
     };
+
+    // ⭐ Update newStockReceivedDate ONLY IF quantity changed
+    if (quantityChanged) {
+      updatePayload.newStockReceivedDate = new Date();
+    }
+
+    // ⭐ receivedBy save
+    if (receivedBy) {
+      updatePayload.receivedBy = receivedBy;
+    }
 
     const updated = await StockItems.findByIdAndUpdate(
       req.params.id,
