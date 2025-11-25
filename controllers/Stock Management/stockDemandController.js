@@ -215,7 +215,7 @@ export const getDemands = async (req, res) => {
     if (siteId) filter.siteId = siteId;
     if (supervisorId) filter.supervisorId = supervisorId;
     if (complaintId) filter.complaintId = complaintId;
-
+    filter.isDeleted = false
     const demands = await StockDemand.find(filter)
       .populate("itemId")
       .populate("supervisorId")
