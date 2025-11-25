@@ -257,7 +257,9 @@ export const updateComplaint = async (req, res) => {
         return sendError(res, "Material demand details required");
       // Detect if input is ObjectId
       if (mongoose.Types.ObjectId.isValid(materialDemand.materialName)) {
-        req.body.materialName = new mongoose.Types.ObjectId(materialDemand.materialName);
+        req.body.materialName = new mongoose.Types.ObjectId(
+          materialDemand.materialName
+        );
       }
       historyEntry.materialDemand = materialDemand;
     }
@@ -468,6 +470,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
 
         .populate("siteId", "siteName")
         // .populate("projectId", "projectName")
+        .populate("statusHistory.materialDemand.materialName")
         .populate("unitId", "unitType unitNumber");
 
       if (!complaint) return sendError(res, "Complaint not found", 404);
