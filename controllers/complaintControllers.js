@@ -379,6 +379,7 @@ export const getAllComplaints = async (req, res) => {
       .populate("siteId", "siteName")
       // .populate("projectId", "projectName")
       .populate("unitId", "unitType unitNumber")
+      .populate("statusHistory.materialDemand.materialName")
       .sort({ createdAt: -1 });
 
     const total = await Complaint.countDocuments(match);
