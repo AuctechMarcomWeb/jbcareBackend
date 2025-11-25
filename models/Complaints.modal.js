@@ -19,7 +19,7 @@ const SupervisorDetailsSchema = new Schema(
  */
 const MaterialDemandSchema = new Schema(
   {
-    materialName: { type: Schema.Types.Mixed, required: true },
+    materialName: { type: Schema.Types.ObjectId, required: true , ref:'StockItems'},
     quantity: { type: String, required: true, trim: true },
     reason: { type: String, trim: true },
     images: [{ type: String }],
