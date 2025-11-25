@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { razorpayInstance } from "../models/utilsSchemas/WalletTransactions.modal.js";
 import Landlord from "../models/LandLord.modal.js";
 import WalletTransaction from "../models/utilsSchemas/WalletTransactions.modal.js";
+import Billing from "../models/Billing.modal.js";
 
 // 🧾 Create Razorpay order
 export const createOrder = async (req, res) => {
@@ -105,7 +106,7 @@ export const verifyPayment = async (req, res) => {
 // 💳 Pay bill using wallet (Debit)
 export const payUsingWallet = async (req, res) => {
   try {
-    const { landlordId, amount, billId } = req.body;
+    const { landlordId, amount, billId, paidBy, payerId } = req.body;
 
     if (!landlordId || !amount) {
       return res.status(400).json({
@@ -164,7 +165,23 @@ export const payUsingWallet = async (req, res) => {
       method: "wallet",
       closingAvailableBalance: landlord.availableBalance,
       closingCreditLimit: landlord.walletBalance,
+      paidBy: paidBy,
+      payerId: payerId,
     });
+
+    // ⭐⭐⭐ NEW — MARK BILL AS PAID ⭐⭐⭐
+    if (billId) {
+      await Billing.findByIdAndUpdate(
+        billId,
+        {
+          status: "Paid",
+          paidOn: new Date(),
+          paidBy: paidBy,
+          payerId: payerId,
+        },
+        { new: true }
+      );
+    }
 
     res.status(200).json({
       success: true,

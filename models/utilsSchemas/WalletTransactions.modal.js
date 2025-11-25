@@ -23,6 +23,8 @@ const walletTransactionSchema = new mongoose.Schema(
     // Wallet balance after this transaction
     closingAvailableBalance: { type: Number },
     closingCreditLimit: { type: Number },
+    paidBy:String,
+    payerId:{type: mongoose.Schema.Types.ObjectId}
   },
   { timestamps: true }
 );

@@ -17,6 +17,8 @@ const BillingSchema = new mongoose.Schema({
 
   paymentId: String,
   paidAt: Date,
+  paidBy: String,
+  payerId: { type: mongoose.Schema.Types.ObjectId },
 });
 
 const Billing = mongoose.model("Billing", BillingSchema);
