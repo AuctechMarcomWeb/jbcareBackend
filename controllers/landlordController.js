@@ -31,6 +31,9 @@ export const addLandlord = async (req, res) => {
       isActive = true,
       ownershipstartDate,
       ownershipEndDate,
+      meterId,
+      customerId,
+      meterSerialNumber,
     } = req.body;
 
     // 🧩 Validation
@@ -80,6 +83,10 @@ export const addLandlord = async (req, res) => {
       ownershipstartDate,
       ownershipEndDate,
       createdBy: req.user?._id || null,
+      // 🆕 NEW ELECTRIC METER FIELDS
+      meterId,
+      customerId,
+      meterSerialNumber,
     });
 
     // 🔄 Update each linked unit
