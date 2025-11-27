@@ -26,46 +26,46 @@ export const createSupervisor = async (req, res) => {
       email,
       verificationDocuments,
       siteId,
-      projectId,
-      // unitId, // single unit
       isActive = true,
     } = req.body;
 
-    // Manual validations
-    if (!name || typeof name !== "string")
-      return sendError(res, "Name is required", 400);
-    if (!phone || typeof phone !== "string")
-      return sendError(res, "Phone is required", 400);
-    if (email && typeof email !== "string")
-      return sendError(res, "Email must be a string", 400);
+    if (!name) return sendError(res, "Name is required", 400);
+    if (!phone) return sendError(res, "Phone is required", 400);
     if (!siteId) return sendError(res, "siteId is required", 400);
-    // if (!projectId) return sendError(res, "projectId is required", 400);
-    // if (!unitId) return sendError(res, "unitId is required", 400);
-    if (
-      !verificationDocuments ||
-      !Array.isArray(verificationDocuments) ||
-      verificationDocuments.length === 0
-    ) {
+
+    if (!verificationDocuments || !verificationDocuments.length)
       return sendError(
         res,
         "At least one verification document is required",
         400
       );
+
+    // --------------------------------------
+    // 🔥 Make ALL previous supervisors inactive for this site
+    // --------------------------------------
+    if (isActive === true) {
+      await Supervisor.updateMany(
+        { siteId, isActive: true },
+        { $set: { isActive: false } }
+      );
     }
 
-    // 1️⃣ Create Supervisor document first
+    // --------------------------------------
+    // 1️⃣ Create Supervisor
+    // --------------------------------------
     const supervisor = new Supervisor({
       name,
       phone,
       email,
       verificationDocuments,
       siteId,
-      // projectId,
       isActive,
     });
     await supervisor.save();
 
-    // 2️⃣ Create User account for Supervisor
+    // --------------------------------------
+    // 2️⃣ Create User
+    // --------------------------------------
     const userPayload = {
       name,
       email,
@@ -74,32 +74,28 @@ export const createSupervisor = async (req, res) => {
       referenceId: supervisor._id,
       password: "ABC123",
       siteId,
-      // projectId,
-      // unitId, // single unit
     };
 
-    const user = await createUser(userPayload); // helper should return created user document
+    const user = await createUser(userPayload);
 
-    // 3️⃣ Update Supervisor with userId
+    // --------------------------------------
+    // 3️⃣ Link userId → Supervisor
+    // --------------------------------------
     supervisor.userId = user._id;
     await supervisor.save();
 
-    return sendSuccess(
-      res,
-      "Supervisor created successfully with user account",
-      supervisor,
-      200
-    );
+    return sendSuccess(res, "Supervisor created successfully", supervisor, 200);
   } catch (err) {
+    console.error("Create Supervisor Error:", err);
     return sendError(res, "Server error", 500, err.message);
   }
 };
+
 export const getSupervisors = async (req, res) => {
   try {
     const {
       siteId,
-      // projectId,
-      // unitId,
+      search,
       name,
       phone,
       isActive,
@@ -110,66 +106,100 @@ export const getSupervisors = async (req, res) => {
       isPagination = "true",
     } = req.query;
 
-    const filters = {};
+    let match = {};
 
-    // --- REUSABLE FUNCTION ---
-    const addObjectIdFilter = (key, value) => {
-      if (value && mongoose.Types.ObjectId.isValid(value)) {
-        filters[key] = value;
-      }
-    };
+    // -----------------------------
+    // 📌 Filter By siteId (ObjectId)
+    // -----------------------------
+    if (siteId && mongoose.Types.ObjectId.isValid(siteId)) {
+      match.siteId = new mongoose.Types.ObjectId(siteId);
+    }
 
-    addObjectIdFilter("siteId", siteId);
-    // addObjectIdFilter("projectId", projectId);
-    // addObjectIdFilter("unitId", unitId);
-
+    // -----------------------------
+    // 📌 Filter By name only (specific)
+    // -----------------------------
     if (name) {
-      filters.name = { $regex: name, $options: "i" };
+      match.name = { $regex: name, $options: "i" };
     }
 
+    // -----------------------------
+    // 📌 Filter By phone
+    // -----------------------------
     if (phone) {
-      filters.phone = { $regex: phone, $options: "i" };
+      match.phone = { $regex: phone, $options: "i" };
     }
 
+    // -----------------------------
+    // 📌 Filter by active/inactive
+    // -----------------------------
     if (isActive !== undefined) {
-      filters.isActive = isActive === "true" || isActive === "1";
+      match.isActive = isActive === "true" || isActive === "1";
     }
 
-    console.log("APPLIED FILTERS:", filters);
+    // -----------------------------
+    // 📌 GLOBAL SEARCH (name OR siteName)
+    // -----------------------------
+    let searchStage = {};
+    if (search) {
+      const regex = new RegExp(search, "i");
+      searchStage = {
+        $or: [
+          { name: regex }, // supervisor name
+          { "site.siteName": regex }, // site name
+        ],
+      };
+    }
 
-    const sortOrder = order === "asc" ? 1 : -1;
-    const sortConfig = { [sortBy]: sortOrder };
+    // ----------------------------------------
+    // 📌 AGGREGATION PIPELINE (needed for siteName search)
+    // ----------------------------------------
+    const pipeline = [
+      { $match: match },
 
-    let supervisors, total;
+      // Join sites
+      {
+        $lookup: {
+          from: "sites",
+          localField: "siteId",
+          foreignField: "_id",
+          as: "site",
+        },
+      },
+      { $unwind: { path: "$site", preserveNullAndEmptyArrays: true } },
+
+      // Apply searchStage if search exists
+      ...(search ? [{ $match: searchStage }] : []),
+
+      // Sorting
+      {
+        $sort: { [sortBy]: order === "asc" ? 1 : -1 },
+      },
+    ];
+
+    // ----------------------------------------
+    // 📌 Pagination
+    // ----------------------------------------
+    let total = 0;
+    let supervisors = [];
 
     if (isPagination === "true") {
-      const skip = (page - 1) * limit;
-      total = await Supervisor.countDocuments(filters);
+      total = (await Supervisor.aggregate(pipeline)).length;
 
-      supervisors = await Supervisor.find(filters)
-        .populate("siteId", "siteName")
-        // .populate("projectId", "projectName")
-        // .populate("unitId", "unitNumber")
-        .sort(sortConfig)
-        .skip(skip)
-        .limit(Number(limit));
+      pipeline.push(
+        { $skip: (page - 1) * Number(limit) },
+        { $limit: Number(limit) }
+      );
 
-      return sendSuccess(res, "Supervisors fetched successfully", {
-        total,
-        page: Number(page),
-        limit: Number(limit),
-        supervisors,
-      });
+      supervisors = await Supervisor.aggregate(pipeline);
+    } else {
+      supervisors = await Supervisor.aggregate(pipeline);
+      total = supervisors.length;
     }
 
-    supervisors = await Supervisor.find(filters)
-      .populate("siteId", "siteName")
-      // .populate("projectId", "projectName")
-      // .populate("unitId", "unitNumber")
-      .sort(sortConfig);
-
-    return sendSuccess(res, "Supervisors fetched successfully", {
-      total: supervisors.length,
+    return sendSuccess(res, "Supervisors fetched", {
+      total,
+      page: Number(page),
+      limit: Number(limit),
       supervisors,
     });
   } catch (err) {
@@ -177,7 +207,6 @@ export const getSupervisors = async (req, res) => {
     return sendError(res, err.message || "Server Error");
   }
 };
-
 
 // ➤ Get Supervisor by ID
 export const getSupervisorById = async (req, res) => {
@@ -187,10 +216,11 @@ export const getSupervisorById = async (req, res) => {
     return sendError(res, "Id not found/Invalid", 404, "Id not found/Invalid");
   }
   try {
-    const supervisor = await Supervisor.findById(req.params.id)
-      .populate("siteId") // populate specific fields
-      // .populate("projectId")
-      // .populate("unitId");
+    const supervisor = await Supervisor.findById(req.params.id).populate(
+      "siteId"
+    ); // populate specific fields
+    // .populate("projectId")
+    // .populate("unitId");
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
     return sendSuccess(res, "Fetched the supervisor by id", supervisor, 200);
   } catch (err) {
@@ -198,29 +228,42 @@ export const getSupervisorById = async (req, res) => {
   }
 };
 
-// ➤ Update Supervisor
 export const updateSupervisor = async (req, res) => {
-  if (!req?.params?.id) {
-    return sendError(res, "Id not found/Invalid", 404, "Id not found/Invalid");
-  }
-  if (Object.keys(req.body).length === 0) {
-    return sendError(res, "No data provided for update", 400, "Empty body");
-  }
   try {
-    const supervisor = await Supervisor.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-      }
-    )
-      .populate("siteId") // populate specific fields
-      // .populate("projectId")
-      // .populate("unitId");
+    const { supervisorId } = req.params;
+    const updates = req.body;
+
+    const supervisor = await Supervisor.findById(supervisorId);
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
-    return sendSuccess(res, "Supervisor updated successfully", supervisor, 200);
+
+    const siteId = supervisor.siteId;
+
+    // --------------------------------------
+    // 🔥 If supervisor is becoming ACTIVE
+    // --------------------------------------
+    if (updates.isActive === true) {
+      await Supervisor.updateMany(
+        {
+          siteId,
+          _id: { $ne: supervisorId }, // exclude current supervisor
+          isActive: true,
+        },
+        { $set: { isActive: false } }
+      );
+    }
+
+    // --------------------------------------
+    // 🔥 If inactive → no need to update others
+    // --------------------------------------
+
+    // Apply updates
+    Object.assign(supervisor, updates);
+    await supervisor.save();
+
+    return sendSuccess(res, "Supervisor updated successfully", supervisor);
   } catch (err) {
-    return sendError(res, err.message, 500, err.message);
+    console.error("Update Supervisor Error:", err);
+    return sendError(res, "Server error", 500, err.message);
   }
 };
 

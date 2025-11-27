@@ -72,6 +72,10 @@ const landlordSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // 👈 new field
     parking: { type: String },
     availableBalance: { type: Number, default: 0 },
+    // 🆕 NEW ELECTRIC METER FIELDS
+    meterId: { type: String, trim: true }, // meter ID
+    customerId: { type: String, trim: true }, // e.g. 5F-501
+    meterSerialNumber: { type: String, trim: true }, // serial number printed on meter
   },
   { timestamps: true }
 );

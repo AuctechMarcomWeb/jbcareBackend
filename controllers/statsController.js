@@ -42,12 +42,12 @@ export const getBillingSummary = async (req, res) => {
 
     const match = {};
 
-    // 📌 Date filter applied on generatedOn field
     if (fromDate && toDate) {
-      match.generatedOn = {
-        $gte: new Date(fromDate),
-        $lte: new Date(toDate + "T23:59:59"),
-      };
+      const start = new Date(fromDate);
+      const end = new Date(toDate);
+
+      match.fromDate = { $lte: end };
+      match.toDate = { $gte: start };
     }
 
     const result = await Billing.aggregate([
