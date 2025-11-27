@@ -230,10 +230,10 @@ export const getSupervisorById = async (req, res) => {
 
 export const updateSupervisor = async (req, res) => {
   try {
-    const { supervisorId } = req.params;
+    const { id } = req.params;
     const updates = req.body;
 
-    const supervisor = await Supervisor.findById(supervisorId);
+    const supervisor = await Supervisor.findById(id);
     if (!supervisor) return sendError(res, "Supervisor not found", 404);
 
     const siteId = supervisor.siteId;
@@ -245,7 +245,7 @@ export const updateSupervisor = async (req, res) => {
       await Supervisor.updateMany(
         {
           siteId,
-          _id: { $ne: supervisorId }, // exclude current supervisor
+          _id: { $ne: id }, // exclude current supervisor
           isActive: true,
         },
         { $set: { isActive: false } }
