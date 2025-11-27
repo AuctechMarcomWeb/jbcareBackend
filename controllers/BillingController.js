@@ -6,6 +6,7 @@ import Landlord from "../models/LandLord.modal.js";
 import MaintainCharges from "../models/MantainCharge.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import Tenant from "../models/Tenant.modal.js";
+import MeterLogs from "../models/MeterLogs.modal.js";
 
 // 🟢 CREATE BILL
 export const createBilling = async (req, res) => {
@@ -274,9 +275,9 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
             (t) => t.isActive
           );
 
-          tenant = await Tenant.findById(activeTenantRecord?.tenantId).select(
-            "name email phone "
-          ) .lean();
+          tenant = await Tenant.findById(activeTenantRecord?.tenantId)
+            .select("name email phone ")
+            .lean();
 
           if (activeTenantRecord?.billTo) {
             billTo = activeTenantRecord.billTo; // "tenant" or "landlord"
@@ -349,6 +350,10 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
         .filter(Boolean)
         .join(", ");
 
+      const meterLog = await MeterLogs.findOne({ landlordId: landlord._id })
+        .select("currentStatus")
+        .lean();
+
       summary.push({
         landlordId: landlord._id,
         landlordName: landlord.name,
@@ -370,6 +375,9 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
         paidBillTotal: paidBillTotal.toFixed(2),
 
         unitDetails, // ⬅️ FULL UNIT DATA
+
+        // ✅ Add current meter status here
+        meterStatus: meterLog?.currentStatus || "ON",
 
         fromDate: firstDay,
         toDate: now,

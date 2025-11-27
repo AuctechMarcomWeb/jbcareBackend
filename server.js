@@ -27,6 +27,7 @@ import subCategoryRoutes from './routes/masters/subCategoryRoutes.js'
 import warehouseRoutes from './routes/masters/warehouseRoutes.js'
 import stocksRoutes from './routes/Stocks/stocksRoutes.js'
 import stockDemand from './routes/Stocks/demandRoutes.js'
+import meterRoutes from './routes/Bills/MeterRoutes.js'
 
 dotenv.config();
 connectDB(); 
@@ -57,6 +58,7 @@ app.use("/api/sub-category", subCategoryRoutes);
 app.use("/api/warehouse", warehouseRoutes);
 app.use("/api/stocks", stocksRoutes);
 app.use("/api/demand", stockDemand);
+app.use("/api/meter", meterRoutes);
 
 app.use("/api", uploadRoutes);
 
