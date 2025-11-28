@@ -34,6 +34,7 @@ export const addLandlord = async (req, res) => {
       meterId,
       customerId,
       meterSerialNumber,
+      openingBalance
     } = req.body;
 
     // 🧩 Validation
@@ -87,6 +88,7 @@ export const addLandlord = async (req, res) => {
       meterId,
       customerId,
       meterSerialNumber,
+      openingBalance
     });
 
     // 🔄 Update each linked unit

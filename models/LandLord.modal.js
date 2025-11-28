@@ -76,6 +76,15 @@ const landlordSchema = new mongoose.Schema(
     meterId: { type: String, trim: true }, // meter ID
     customerId: { type: String, trim: true }, // e.g. 5F-501
     meterSerialNumber: { type: String, trim: true }, // serial number printed on meter
+    // 🆕 Opening Balance with debit/credit type
+    openingBalance: {
+      amount: { type: Number, default: 0 }, // Opening balance
+      type: {
+        type: String,
+        enum: ["Debit", "Credit", null], // Debit = pending, Credit = advance
+        default: null,
+      },
+    },
   },
   { timestamps: true }
 );
