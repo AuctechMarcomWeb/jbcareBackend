@@ -55,7 +55,7 @@ export const toggleMeter = async (req, res) => {
         customerId,
         meterId,
         meterSerialNumber,
-        currentStatus:OnOff.toUpperCase(),
+        currentStatus: OnOff.toUpperCase(),
         $push: { logs: logEntry },
       },
       { new: true, upsert: true }
@@ -67,10 +67,12 @@ export const toggleMeter = async (req, res) => {
       data: result,
     });
   } catch (err) {
+    console.error("FULL ERROR:", err.response?.data || err.message);
+
     return res.status(500).json({
       success: false,
       message: "Meter toggle failed",
-      error: err.message,
+      error: err.response?.data || err.message,
     });
   }
 };
