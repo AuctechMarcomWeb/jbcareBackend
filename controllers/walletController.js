@@ -3,6 +3,9 @@ import { razorpayInstance } from "../models/utilsSchemas/WalletTransactions.moda
 import Landlord from "../models/LandLord.modal.js";
 import WalletTransaction from "../models/utilsSchemas/WalletTransactions.modal.js";
 import Billing from "../models/Billing.modal.js";
+import Ledger from "../models/Ledger.modal.js";
+import { createLedger } from "./ledgerController.js";
+// import { createLedgerEntry, getOpening } from "./ledgerController.js";
 
 // 🧾 Create Razorpay order
 export const createOrder = async (req, res) => {
@@ -103,98 +106,66 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
-// 💳 Pay bill using wallet (Debit)
 export const payUsingWallet = async (req, res) => {
   try {
     const { landlordId, amount, billId, paidBy, payerId } = req.body;
 
-    if (!landlordId || !amount) {
-      return res.status(400).json({
-        success: false,
-        message: "Landlord ID and amount are required",
-      });
-    }
-
     const landlord = await Landlord.findById(landlordId);
-    if (!landlord) {
-      return res.status(404).json({
-        success: false,
-        message: "Landlord not found",
-      });
-    }
 
-    const totalUsable =
-      (landlord.availableBalance || 0) + (landlord.walletBalance || 0);
-
-    // ❌ Not enough balance
-    if (totalUsable < amount) {
+    // ❗ Check wallet balance
+    if (landlord.walletBalance < amount) {
       return res.status(400).json({
         success: false,
         message: "Insufficient wallet balance",
-        availableBalance: landlord.availableBalance,
-        creditLimit: landlord.walletBalance,
       });
     }
 
-    let remainingAmount = amount;
-
-    // 🟢 Step 1: Deduct from available balance
-    if (landlord.availableBalance >= remainingAmount) {
-      landlord.availableBalance -= remainingAmount;
-      remainingAmount = 0;
-    } else {
-      remainingAmount -= landlord.availableBalance;
-      landlord.availableBalance = 0;
-    }
-
-    // 🟡 Step 2: Deduct from credit limit
-    if (remainingAmount > 0) {
-      landlord.walletBalance -= remainingAmount;
-      remainingAmount = 0;
-    }
-
+    // 🟦 Deduct wallet amount
+    landlord.walletBalance -= amount;
     await landlord.save();
 
-    // 🧾 Log wallet debit transaction
-    await WalletTransaction.create({
-      landlordId,
-      type: "debit",
-      amount,
-      description: `Maintenance Bill Payment${billId ? ` (${billId})` : ""}`,
-      referenceId: billId || "",
-      method: "wallet",
-      closingAvailableBalance: landlord.availableBalance,
-      closingCreditLimit: landlord.walletBalance,
-      paidBy: paidBy,
-      payerId: payerId,
-    });
+    // ⭐ Create CREDIT ledger entry (payment)
+    await createLedger(
+      {
+        body: {
+          landlordId,
+          siteId: landlord.siteId, // optional: remove if not needed
+          unitId: landlord.unitId, // optional: remove if not needed
+          billId: billId || null,
+          amount,
+          purpose: "Bill Payment",
+          transactionType: "Payment", // very important
+        },
+      },
+      {
+        status: () => ({ json: () => {} }), // dummy express res
+      }
+    );
 
-    // ⭐⭐⭐ NEW — MARK BILL AS PAID ⭐⭐⭐
+    // ⭐ Mark bill paid (if bill exists)
     if (billId) {
       await Billing.findByIdAndUpdate(
         billId,
         {
           status: "Paid",
           paidOn: new Date(),
-          paidBy: paidBy,
-          payerId: payerId,
+          paidBy,
+          payerId,
         },
         { new: true }
       );
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Payment processed successfully",
-      availableBalance: landlord.availableBalance,
-      creditLimit: landlord.walletBalance,
-      totalUsable: landlord.availableBalance + landlord.walletBalance,
+      walletBalance: landlord.walletBalance,
     });
   } catch (error) {
-    console.error("Wallet debit error:", error);
-    res.status(500).json({
+    console.error("❌ Wallet Debit Error:", error);
+    return res.status(500).json({
       success: false,
-      message: "Failed to process wallet payment",
+      message: "Failed to process payment",
       error: error.message,
     });
   }
