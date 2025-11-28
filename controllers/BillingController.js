@@ -354,6 +354,16 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
         .select("currentStatus")
         .lean();
 
+      const meterId = await MeterLogs.findOne({ landlordId: landlord._id })
+        .select("meterId")
+        .lean();
+      const customerId = await MeterLogs.findOne({ landlordId: landlord._id })
+        .select("customerId")
+        .lean();
+      const meterSN = await MeterLogs.findOne({ landlordId: landlord._id })
+        .select("meterSerialNumber")
+        .lean();
+
       summary.push({
         landlordId: landlord._id,
         landlordName: landlord.name,
@@ -378,6 +388,9 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
 
         // ✅ Add current meter status here
         meterStatus: meterLog?.currentStatus || "ON",
+        meterId:meterId?.meterId,
+        customerId: customerId?.customerId,
+        meterSN:meterSN?.meterSerialNumber,
 
         fromDate: firstDay,
         toDate: now,
