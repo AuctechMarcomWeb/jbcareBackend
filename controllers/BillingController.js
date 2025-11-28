@@ -7,11 +7,33 @@ import MaintainCharges from "../models/MantainCharge.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import Tenant from "../models/Tenant.modal.js";
 import MeterLogs from "../models/MeterLogs.modal.js";
+import Ledger from "../models/Ledger.modal.js";
+import { createLedger } from "./ledgerController.js";
+// import { createLedgerEntry, getOpening } from "./ledgerController.js";
 
-// 🟢 CREATE BILL
 export const createBilling = async (req, res) => {
   try {
     const bill = await Billing.create(req.body);
+
+
+    // ⭐ Call ledger controller internally
+    await createLedger(
+      {
+        body: {
+          landlordId: bill.landlordId,
+          siteId: bill.siteId,
+          unitId: bill.unitId,
+          billId: bill._id,
+          amount: bill.totalAmount,
+          purpose: "Bill Generated",
+          transactionType: "Bill",
+        },
+      },
+      {
+        status: () => ({ json: () => {} }), // dummy res object
+      }
+    );
+
     return res.status(201).json({
       success: true,
       message: "Billing record created successfully",
@@ -19,9 +41,11 @@ export const createBilling = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ createBilling Error:", error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Server Error", error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
   }
 };
 
@@ -388,9 +412,9 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
 
         // ✅ Add current meter status here
         meterStatus: meterLog?.currentStatus || "ON",
-        meterId:meterId?.meterId,
+        meterId: meterId?.meterId,
         customerId: customerId?.customerId,
-        meterSN:meterSN?.meterSerialNumber,
+        meterSN: meterSN?.meterSerialNumber,
 
         fromDate: firstDay,
         toDate: now,
