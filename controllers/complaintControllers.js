@@ -545,3 +545,81 @@ export const getComplaintsByUserOrId = async (req, res) => {
     return sendError(res, "Failed to fetch complaints", 500, error.message);
   }
 };
+
+export const triggerComplaintBuzzer = async () => {
+  try {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+    const complaints = await Complaint.find({
+      status: { $nin: ["Closed By Supervisor", "Closed By Help Desk"] },
+
+      // ❗ IMPORTANT: Skip complaints where user disabled the buzzer
+      "buzzer.disabledByUser": { $ne: true },
+
+      $or: [
+        { "statusHistory.updatedAt": { $lt: twoDaysAgo } },
+        { statusHistory: { $size: 0 }, createdAt: { $lt: twoDaysAgo } },
+      ],
+    });
+
+    if (!complaints.length) {
+      console.log("No complaints need buzzer trigger.");
+      return;
+    }
+
+    const bulkOps = complaints.map((complaint) => ({
+      updateOne: {
+        filter: { _id: complaint._id },
+        update: {
+          $set: {
+            "buzzer.isActive": true,
+            "buzzer.autoTriggerAt": new Date(),
+          },
+        },
+      },
+    }));
+
+    await Complaint.bulkWrite(bulkOps);
+
+    console.log(`${complaints.length} complaint(s) buzzer activated.`);
+  } catch (error) {
+    console.error("CRON BUZZER ERROR:", error);
+  }
+};
+
+export const turnOffBuzzer = async (req, res) => {
+  try {
+    const { complaintId } = req.params;
+
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint) {
+      return res.status(404).json({
+        success: false,
+        message: "Complaint not found",
+      });
+    }
+
+    await Complaint.findByIdAndUpdate(
+      complaintId,
+      {
+        $set: {
+          "buzzer.isActive": false,
+          "buzzer.disabledByUser": true,
+          "buzzer.autoTriggerAt": null,
+        },
+      },
+      { new: true }
+    );
+
+    return res.json({
+      success: true,
+      message: "Buzzer turned off by user",
+    });
+  } catch (error) {
+    console.error("Turn off buzzer error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};

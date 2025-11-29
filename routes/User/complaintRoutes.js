@@ -6,6 +6,7 @@ import {
   getAllComplaints,
   deleteComplaint,
   getComplaintsByUserOrId,
+  turnOffBuzzer,
 } from "../../controllers/complaintControllers.js";
 
 const router = express.Router();
@@ -28,6 +29,7 @@ router.get("/user/:userId", getComplaintsByUserOrId);
 
 // 🔹 Get a single complaint by its ID
 router.get("/:complaintId", getComplaintsByUserOrId);
+router.post("/buzzer/:complaintId", turnOffBuzzer);
 
 // 🗑️ Delete complaint by ID
 router.delete("/complaints/:id", deleteComplaint);
