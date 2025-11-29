@@ -1,5 +1,6 @@
 import Ledger from "../models/Ledger.modal.js";
 import Landlord from "../models/LandLord.modal.js";
+import Billing from "../models/Billing.modal.js";
 
 export const calculateClosingBalance = (opening, amount, transactionType) => {
   let current =
@@ -193,37 +194,89 @@ export const getLedgerByLandlord = async (req, res) => {
 
 export const getAllLedgers = async (req, res) => {
   try {
-    const { from, to, type, page = 1, limit = 20 } = req.query;
+    const {
+      from,
+      to,
+      type,
+      siteId,
+      unitId,
+      landlordId,
+      tenantId,
+      search,
+      isPagination = "true",
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     const query = {};
 
-    // Date filter
+    // ---------------------------
+    // 1️⃣ Date Filter
+    // ---------------------------
     if (from || to) {
       query.createdAt = {};
       if (from) query.createdAt.$gte = new Date(from);
       if (to) query.createdAt.$lte = new Date(to);
     }
 
-    // Type filter (Payment / Bill / OpeningBalance etc.)
-    if (type) {
-      query.transactionType = type;
+    // ---------------------------
+    // 2️⃣ Type Filter
+    // ---------------------------
+    if (type) query.transactionType = type;
+
+    // ---------------------------
+    // 3️⃣ Reference Filters
+    // ---------------------------
+    if (siteId) query.siteId = siteId;
+    if (unitId) query.unitId = unitId;
+    if (landlordId) query.landlordId = landlordId;
+    if (tenantId) query.tenantId = tenantId;
+
+    // ---------------------------
+    // 4️⃣ Global Search Filter
+    // ---------------------------
+    if (search) {
+      query.$or = [
+        { billNo: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { landlordName: { $regex: search, $options: "i" } },
+        { tenantName: { $regex: search, $options: "i" } },
+        { siteName: { $regex: search, $options: "i" } },
+        { unitName: { $regex: search, $options: "i" } },
+      ];
     }
 
-    // Pagination logic
-    const skip = (page - 1) * limit;
+    // ---------------------------
+    // 5️⃣ Pagination Logic
+    // ---------------------------
+    let ledgers;
+    let total;
 
-    const ledgers = await Ledger.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit));
+    if (isPagination === "false") {
+      // No pagination → return all records
+      ledgers = await Ledger.find(query).sort({ createdAt: -1 });
+      total = ledgers.length;
+    } else {
+      const skip = (page - 1) * limit;
 
-    const total = await Ledger.countDocuments(query);
+      ledgers = await Ledger.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .populate("billId",)
+        .populate("siteId","siteName")
+        .populate("unitId", "unitNumber")
+        .populate("landlordId", "name");
+
+      total = await Ledger.countDocuments(query);
+    }
 
     return res.status(200).json({
       success: true,
+      isPagination: isPagination === "true",
       total,
       page: Number(page),
-      pages: Math.ceil(total / limit),
+      pages: isPagination === "true" ? Math.ceil(total / limit) : 1,
       data: ledgers,
     });
   } catch (error) {
@@ -231,6 +284,118 @@ export const getAllLedgers = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch ledgers",
+      error: error.message,
+    });
+  }
+};
+
+export const getConsolidatedPayable = async (req, res) => {
+  try {
+    const { landlordId } = req.params;
+
+    if (!landlordId) {
+      return res.status(400).json({
+        success: false,
+        message: "landlordId is required",
+      });
+    }
+
+    // 1️⃣ Fetch latest ledger closing balance
+    const lastLedger = await Ledger.findOne({ landlordId }).sort({
+      createdAt: -1,
+    });
+
+    let balanceAmount = lastLedger?.closingBalance?.amount || 0;
+    let balanceType = lastLedger?.closingBalance?.type || null;
+
+    // Convert to numeric:
+    // Credit = negative (advance), Debit = positive (due)
+    let currentBalance =
+      balanceType === "Debit"
+        ? balanceAmount
+        : balanceType === "Credit"
+        ? -balanceAmount
+        : 0;
+
+    // 2️⃣ Fetch all unpaid bills
+    const unpaidBills = await Billing.find({
+      landlordId,
+      status: "Unpaid",
+    }).sort({ generatedOn: 1 });
+
+    let consolidated = [];
+    let totalPayable = 0;
+
+    // 3️⃣ Process each unpaid bill
+    for (const bill of unpaidBills) {
+      let billAmount = bill.totalAmount;
+      let billPayable = 0;
+
+      // CASE 1: CREDIT available (advance)
+      if (currentBalance < 0) {
+        const advance = Math.abs(currentBalance);
+
+        if (advance >= billAmount) {
+          // AUTO-PAY THE BILL ✔
+          await Billing.findByIdAndUpdate(
+            bill._id,
+            {
+              status: "Paid",
+              paidAt: new Date(),
+              paidBy: "Auto",
+              payerId: null,
+            },
+            { new: true }
+          );
+
+          billPayable = 0;
+          currentBalance += billAmount; // reduce advance (less negative)
+        } else {
+          // Partial advance, bill still payable
+          billPayable = billAmount - advance;
+          currentBalance = billPayable; // becomes debit
+        }
+      }
+      // CASE 2: DEBIT (no advance, landlord owes)
+      else {
+        billPayable = currentBalance + billAmount;
+        currentBalance = billPayable;
+      }
+
+      // Add only real payable bills (exclude auto-paid bills)
+      if (billPayable > 0) {
+        totalPayable += billPayable;
+      }
+
+      consolidated.push({
+        billId: bill._id,
+        billAmount,
+        billPayable,
+        autoPaid: billPayable === 0,
+      });
+    }
+
+    // 4️⃣ Determine final balance type
+    const finalBalanceType =
+      currentBalance > 0 ? "Debit" : currentBalance < 0 ? "Credit" : null;
+
+    const finalBalanceAmount = Math.abs(currentBalance);
+
+    return res.status(200).json({
+      success: true,
+      totalBills: unpaidBills.length,
+      totalPayable,
+      finalBalance: {
+        amount: finalBalanceAmount,
+        type: finalBalanceType,
+      },
+      bills: consolidated,
+    });
+  } catch (error) {
+    console.error("Consolidated Payable Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to calculate payable amount",
       error: error.message,
     });
   }
