@@ -131,7 +131,6 @@ export const getBillingSummary = async (req, res) => {
 
 export const getComplaintStats = async (req, res) => {
   try {
-    // Aggregate counts by status
     const stats = await Complaint.aggregate([
       {
         $group: {
@@ -145,6 +144,18 @@ export const getComplaintStats = async (req, res) => {
     let totalOpenComplaints = 0;
     let totalResolvedComplaints = 0;
     let totalClosedComplaints = 0;
+    let totalRepushedComplaints = 0;
+    let totalInProgressComplaints = 0;
+
+    // Status groups
+    const OPEN_STATUSES = [
+      "Open",
+      "Review By Supervisor",
+      "Raise Material Demand",
+      // Work in Progress will be separate
+    ];
+
+    const CLOSED_STATUSES = ["Closed By Help Desk"];
 
     stats.forEach((item) => {
       const status = item._id;
@@ -152,24 +163,39 @@ export const getComplaintStats = async (req, res) => {
 
       totalComplaints += count;
 
-      // 📌 Open-related statuses
-      if (
-        status === "Open" ||
-        status === "Under Review" ||
-        status === "Material Demand Raised" ||
-        status === "WorkinProgress"
-      ) {
+      // -----------------------------
+      // 1️⃣ In Progress (Separate)
+      // -----------------------------
+      if (status === "Work in Progress") {
+        totalInProgressComplaints += count;
+      }
+
+      // -----------------------------
+      // 2️⃣ Open (Except In Progress)
+      // -----------------------------
+      if (OPEN_STATUSES.includes(status)) {
         totalOpenComplaints += count;
       }
 
-      // 📌 Resolved
-      if (status === "Resolved") {
-        totalResolvedComplaints += count;
+      // -----------------------------
+      // 3️⃣ Repushed (Separate)
+      // -----------------------------
+      if (status === "Repush By Help Desk") {
+        totalRepushedComplaints += count;
       }
 
-      // 📌 Closed
-      if (status === "Closed") {
+      // -----------------------------
+      // 4️⃣ Closed (Only Closed By Help Desk)
+      // -----------------------------
+      if (CLOSED_STATUSES.includes(status)) {
         totalClosedComplaints += count;
+      }
+
+      // -----------------------------
+      // 5️⃣ Resolved (If still needed)
+      // -----------------------------
+      if (status === "Closed By Supervisor") {
+        totalResolvedComplaints += count;
       }
     });
 
@@ -177,9 +203,11 @@ export const getComplaintStats = async (req, res) => {
       success: true,
       data: {
         totalComplaints,
-        totalOpenComplaints,
-        totalResolvedComplaints,
-        totalClosedComplaints,
+        open: totalOpenComplaints,
+        inProgress: totalInProgressComplaints,
+        repushed: totalRepushedComplaints,
+        resolved: totalResolvedComplaints,
+        closed: totalClosedComplaints,
       },
     });
   } catch (error) {
