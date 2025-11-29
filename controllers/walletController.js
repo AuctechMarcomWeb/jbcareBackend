@@ -130,7 +130,7 @@ export const payUsingWallet = async (req, res) => {
         body: {
           landlordId,
           siteId: landlord.siteId, // optional: remove if not needed
-          unitId: landlord.unitId, // optional: remove if not needed
+          unitId: landlord.unitIds, // optional: remove if not needed
           billId: billId || null,
           amount,
           purpose: "Bill Payment",

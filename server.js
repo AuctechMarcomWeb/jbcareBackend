@@ -28,6 +28,7 @@ import warehouseRoutes from './routes/masters/warehouseRoutes.js'
 import stocksRoutes from './routes/Stocks/stocksRoutes.js'
 import stockDemand from './routes/Stocks/demandRoutes.js'
 import meterRoutes from './routes/Bills/MeterRoutes.js'
+import ledgerRoutes from './routes/Bills/ledgerRoutes.js'
 
 dotenv.config();
 connectDB(); 
@@ -59,6 +60,7 @@ app.use("/api/warehouse", warehouseRoutes);
 app.use("/api/stocks", stocksRoutes);
 app.use("/api/demand", stockDemand);
 app.use("/api/meter", meterRoutes);
+app.use("/api/ledger", ledgerRoutes);
 
 app.use("/api", uploadRoutes);
 

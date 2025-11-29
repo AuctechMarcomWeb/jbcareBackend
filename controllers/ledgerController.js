@@ -190,3 +190,48 @@ export const getLedgerByLandlord = async (req, res) => {
     res.status(500).json({ success: false, message: "Server Error", error });
   }
 };
+
+export const getAllLedgers = async (req, res) => {
+  try {
+    const { from, to, type, page = 1, limit = 20 } = req.query;
+
+    const query = {};
+
+    // Date filter
+    if (from || to) {
+      query.createdAt = {};
+      if (from) query.createdAt.$gte = new Date(from);
+      if (to) query.createdAt.$lte = new Date(to);
+    }
+
+    // Type filter (Payment / Bill / OpeningBalance etc.)
+    if (type) {
+      query.transactionType = type;
+    }
+
+    // Pagination logic
+    const skip = (page - 1) * limit;
+
+    const ledgers = await Ledger.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    const total = await Ledger.countDocuments(query);
+
+    return res.status(200).json({
+      success: true,
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+      data: ledgers,
+    });
+  } catch (error) {
+    console.error("Get All Ledgers Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch ledgers",
+      error: error.message,
+    });
+  }
+};
