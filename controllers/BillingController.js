@@ -608,7 +608,8 @@ export const generateMonthlyBills = async (req, res) => {
         console.log("DEBUG → previousBills:", previousUnpaid);
 
         if (!existingBill) {
-          await Billing.create({
+          // 1️⃣ Create new bill
+          const newBill = await Billing.create({
             landlordId: landlord._id,
             siteId,
             unitId: unit._id,
@@ -620,6 +621,46 @@ export const generateMonthlyBills = async (req, res) => {
             totalAmount: totalAmount.toFixed(2),
             status: "Unpaid",
           });
+
+          console.log("📌 New Bill Created:", newBill._id);
+
+          // 2️⃣ Get last ledger entry for this landlord
+          const lastLedger = await Ledger.findOne({
+            landlordId: landlord._id,
+          }).sort({ createdAt: -1 });
+
+          const openingBalance = lastLedger
+            ? Number(lastLedger.closingBalance)
+            : 0;
+
+          // 3️⃣ Closing balance increases because bill is CREDIT (landlord needs to pay)
+          const closingBalance = openingBalance + Number(newBill.totalAmount);
+
+          // 🛑 Check if ledger already created for this bill
+          const existingLedger = await Ledger.findOne({
+            landlordId: landlord._id,
+            unitId: unit._id,
+            billId: newBill._id,
+          });
+          if (existingLedger) {
+            console.log("⚠️ Ledger already exists for this bill → Skipping");
+            continue; // Skip ledger creation
+          }
+
+          // 4️⃣ Create ledger entry
+          await Ledger.create({
+            landlordId: landlord._id,
+            billId: newBill._id,
+            siteId: landlord.siteId,
+            unitId: unit._id,
+            type: "DEBIT", // Bill Generated = Credit
+            amount: Number(newBill.totalAmount),
+            openingBalance,
+            closingBalance,
+            narration: `Monthly bill generated for Unit ${unit.unitNumber}`,
+          });
+
+          console.log("📘 Ledger Created for Bill:", newBill._id);
         }
 
         landlordSummary.totalMaintenance += maintenance;

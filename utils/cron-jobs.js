@@ -3,7 +3,7 @@ import { generateMonthlyBills } from "../controllers/BillingController.js";
 import { triggerComplaintBuzzer } from "../controllers/complaintControllers.js";
 
 // Every month on 30th at 23:59
-cron.schedule("* * * * *", async () => {
+cron.schedule("0 0 1 * *", async () => {
   console.log("🧾 Auto-generating monthly bills...");
   await generateMonthlyBills();
 });
