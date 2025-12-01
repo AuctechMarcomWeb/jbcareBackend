@@ -142,10 +142,16 @@ export const updateBilling = async (req, res) => {
       const opening = lastLedger ? lastLedger.closingBalance : 0;
       const closing = opening - billAmount;
 
+       // ⭐ Extract siteId & unitId from bill
+      const siteId = updatedBill.siteId;
+      const unitId = updatedBill.unitId;
+
       // Create new ledger entry
       await Ledger.create({
         landlordId,
         billId: updatedBill._id,
+        siteId,
+        unitId,
         type: "CREDIT", // paying a bill deducts money
         amount: billAmount,
         openingBalance: opening,
