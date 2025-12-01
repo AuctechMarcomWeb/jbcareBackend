@@ -133,6 +133,7 @@ export const payUsingWallet = async (req, res) => {
           unitId: landlord.unitIds, // optional: remove if not needed
           billId: billId || null,
           amount,
+          type:"CREDIT",
           purpose: "Bill Payment",
           transactionType: "Payment", // very important
         },

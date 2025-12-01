@@ -22,16 +22,17 @@ import dashboardRoutes from "./routes/dashboard/dashboard.js";
 import statsRoutes from "./routes/stats/statsRoutes.js";
 import walletRoutes from "./routes/Payment/walletRoutes.js";
 import problemTypeRoutes from "./routes/masters/problemTypeRoutes.js";
-import categoryRoutes from './routes/masters/categoryRoutes.js'
-import subCategoryRoutes from './routes/masters/subCategoryRoutes.js'
-import warehouseRoutes from './routes/masters/warehouseRoutes.js'
-import stocksRoutes from './routes/Stocks/stocksRoutes.js'
-import stockDemand from './routes/Stocks/demandRoutes.js'
-import meterRoutes from './routes/Bills/MeterRoutes.js'
-import ledgerRoutes from './routes/Bills/ledgerRoutes.js'
+import categoryRoutes from "./routes/masters/categoryRoutes.js";
+import subCategoryRoutes from "./routes/masters/subCategoryRoutes.js";
+import warehouseRoutes from "./routes/masters/warehouseRoutes.js";
+import stocksRoutes from "./routes/Stocks/stocksRoutes.js";
+import stockDemand from "./routes/Stocks/demandRoutes.js";
+import meterRoutes from "./routes/Bills/MeterRoutes.js";
+import ledgerRoutes from "./routes/Bills/ledgerRoutes.js";
+import transferRoutes from "./routes/Stocks/stockTransferRoutes.js";
 
 dotenv.config();
-connectDB(); 
+connectDB();
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -61,6 +62,7 @@ app.use("/api/stocks", stocksRoutes);
 app.use("/api/demand", stockDemand);
 app.use("/api/meter", meterRoutes);
 app.use("/api/ledger", ledgerRoutes);
+app.use("/api/transfer", transferRoutes);
 
 app.use("/api", uploadRoutes);
 
