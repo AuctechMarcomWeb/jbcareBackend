@@ -15,7 +15,6 @@ export const createBilling = async (req, res) => {
   try {
     const bill = await Billing.create(req.body);
 
-
     // ⭐ Call ledger controller internally
     await createLedger(
       {
@@ -24,6 +23,7 @@ export const createBilling = async (req, res) => {
           siteId: bill.siteId,
           unitId: bill.unitId,
           billId: bill._id,
+          type: "DEBIT",
           amount: bill.totalAmount,
           purpose: "Bill Generated",
           transactionType: "Bill",
@@ -115,9 +115,44 @@ export const getBillingById = async (req, res) => {
 export const updateBilling = async (req, res) => {
   try {
     const { id } = req.params;
+    // Fetch old bill before update
+    const oldBill = await Billing.findById(id);
+    if (!oldBill) {
+      return res.status(404).json({
+        success: false,
+        message: "Billing record not found",
+      });
+    }
+
+    // Update the bill
     const updatedBill = await Billing.findByIdAndUpdate(id, req.body, {
       new: true,
     });
+
+    // 👉 Check if status changed to "paid"
+    if (req.body.status?.toLowerCase() === "paid") {
+      const landlordId = updatedBill.landlordId;
+      const billAmount = updatedBill.totalAmount;
+
+      // Get last ledger closing balance
+      const lastLedger = await Ledger.findOne({ landlordId }).sort({
+        createdAt: -1,
+      });
+
+      const opening = lastLedger ? lastLedger.closingBalance : 0;
+      const closing = opening - billAmount;
+
+      // Create new ledger entry
+      await Ledger.create({
+        landlordId,
+        billId: updatedBill._id,
+        type: "CREDIT", // paying a bill deducts money
+        amount: billAmount,
+        openingBalance: opening,
+        closingBalance: closing,
+        remark: `Bill #${updatedBill._id} marked as paid`,
+      });
+    }
 
     if (!updatedBill) {
       return res
