@@ -34,7 +34,14 @@ import transferRoutes from "./routes/Stocks/stockTransferRoutes.js";
 dotenv.config();
 connectDB();
 const app = express();
-app.use(cors());
+
+const clientUrl = process.env.CLIENT_URL;
+app.use(
+  cors({
+    origin: clientUrl || "*",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Routes
