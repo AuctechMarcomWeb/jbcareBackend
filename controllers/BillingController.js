@@ -128,36 +128,32 @@ export const updateBilling = async (req, res) => {
     const updatedBill = await Billing.findByIdAndUpdate(id, req.body, {
       new: true,
     });
-
-    // 👉 Check if status changed to "paid"
+    const paidAmount = req.body.paidAmount;
+    // ⭐ Create new ledger entry when bill is paid
     if (req.body.status?.toLowerCase() === "paid") {
       const landlordId = updatedBill.landlordId;
       const billAmount = updatedBill.totalAmount;
-
-      // Get last ledger closing balance
-      const lastLedger = await Ledger.findOne({ landlordId }).sort({
-        createdAt: -1,
-      });
-
-      const opening = lastLedger ? lastLedger.closingBalance : 0;
-      const closing = opening - billAmount;
-
-       // ⭐ Extract siteId & unitId from bill
       const siteId = updatedBill.siteId;
       const unitId = updatedBill.unitId;
 
-      // Create new ledger entry
-      await Ledger.create({
-        landlordId,
-        billId: updatedBill._id,
-        siteId,
-        unitId,
-        type: "CREDIT", // paying a bill deducts money
-        amount: billAmount,
-        openingBalance: opening,
-        closingBalance: closing,
-        remark: `Bill #${updatedBill._id} marked as paid`,
-      });
+      // Call createLedger with correct fields
+      await createLedger(
+        {
+          body: {
+            landlordId,
+            billId: updatedBill._id,
+            siteId,
+            unitId,
+            type: "CREDIT", // bill paid = reduce due
+            amount: paidAmount, // fixed
+            purpose: `Payment for Bill of amount ${billAmount} paid ${paidAmount}`,
+            transactionType: "Payment", // REQUIRED
+          },
+        },
+        {
+          status: () => ({ json: () => {} }),
+        }
+      );
     }
 
     if (!updatedBill) {

@@ -85,6 +85,7 @@ const landlordSchema = new mongoose.Schema(
         default: null,
       },
     },
+    purpose: String
   },
   { timestamps: true }
 );
