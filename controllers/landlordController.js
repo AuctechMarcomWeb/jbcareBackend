@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import { register } from "./authControllers.js";
 import { createUser } from "../utils/createUser.js";
+import Ledger from "../models/Ledger.modal.js";
 
 // 🟢 Add Landlord
 export const addLandlord = async (req, res) => {
@@ -34,7 +35,8 @@ export const addLandlord = async (req, res) => {
       meterId,
       customerId,
       meterSerialNumber,
-      openingBalance
+      openingBalance,
+      purpose,
     } = req.body;
 
     // 🧩 Validation
@@ -88,7 +90,8 @@ export const addLandlord = async (req, res) => {
       meterId,
       customerId,
       meterSerialNumber,
-      openingBalance
+      openingBalance,
+      purpose,
     });
 
     // 🔄 Update each linked unit
@@ -156,13 +159,43 @@ export const addLandlord = async (req, res) => {
       role: "landlord",
       referenceId: landlord?._id,
       siteId, // ✅ from req.body
-      // projectId, // ✅ from req.body
       unitId: unitIds[0] || null, // ✅ first unit
     });
 
     // 🔹 Save user ID back to landlord
     landlord.userId = createdUser._id;
     await landlord.save();
+    if (
+      openingBalance &&
+      Number(openingBalance.amount) > 0 &&
+      ["Debit", "Credit"].includes(openingBalance.type)
+    ) {
+      const typePurpose =
+        openingBalance.type === "Debit" ? "Due Amount" : "Advance Amount";
+      await Ledger.create({
+        landlordId: landlord._id,
+        billId: null, // Not linked to any bill
+        siteId: landlord.siteId, // optional: remove if not needed
+        unitId: unitIds[0], // optional: remove if not needed
+        amount: openingBalance?.amount,
+        type:
+          openingBalance === "Credit"
+            ? "CREDIT"
+            : openingBalance === "Debit"
+            ? "DEBIT"
+            : null,
+        purpose: `New Opening balance added - ${typePurpose}` || purpose,
+        transactionType: "Opening Balance",
+        openingBalance: {
+          amount: openingBalance?.amount,
+          type: openingBalance.type,
+        },
+        closingBalance: {
+          amount: openingBalance?.amount,
+          type: openingBalance.type,
+        },
+      });
+    }
 
     return sendSuccess(res, "Landlord added successfully.", landlord, 201);
   } catch (err) {
