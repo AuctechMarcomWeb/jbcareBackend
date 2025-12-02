@@ -50,7 +50,9 @@ const LedgerSchema = new mongoose.Schema(
       type: String,
       enum: ["Bill", "Payment", "Opening Balance"],
     },
-
+     paymentMode:{
+      type:String
+     },
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true }

@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  adminPayBill,
   createBilling,
   deleteAllBillings,
   deleteBilling,
@@ -20,5 +21,6 @@ router.put("/:id", updateBilling); // Update
 router.delete("/:id", deleteBilling); // Delete one
 router.delete("/", deleteAllBillings); // Delete all (optional)
 router.post("/generate-monthly", generateMonthlyBills);
+router.post("/payBill", adminPayBill);
 
 export default router;
