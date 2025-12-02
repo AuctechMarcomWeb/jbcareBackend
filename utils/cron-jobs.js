@@ -8,7 +8,7 @@ cron.schedule("0 0 1 * *", async () => {
   await generateMonthlyBills();
 });
 
-cron.schedule("0 1 * * *", async () => {
+cron.schedule("*/10 * * * *", async () => {
   try {
     console.log("Running daily buzzer check...");
 
