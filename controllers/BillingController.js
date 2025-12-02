@@ -732,3 +732,90 @@ export const generateMonthlyBills = async (req, res) => {
     }
   }
 };
+
+export const adminPayBill = async (req, res) => {
+  try {
+    const {
+      siteId,
+      unitId,
+      landlordId,
+      billId,
+      amount,
+      paymentMode, // Cash, UPI, Bank Transfer, etc.
+      paymentId,
+    } = req.body;
+
+    // 🔍 Validate required fields
+    if (
+      !siteId ||
+      !unitId ||
+      !landlordId ||
+      !billId ||
+      !amount ||
+      !paymentMode
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Required fields missing.",
+      });
+    }
+
+    // 🔍 Fetch Bill
+    const bill = await Billing.findById(billId);
+    if (!bill) {
+      return res.status(404).json({
+        success: false,
+        message: "Bill not found",
+      });
+    }
+
+    // 🔍 If already paid
+    if (bill.status === "paid") {
+      return res.status(400).json({
+        success: false,
+        message: "Bill is already paid",
+      });
+    }
+
+    // 🗂️ 3️⃣ Create Ledger Entry
+    const ledgerEntry = await createLedger(
+      {
+        body: {
+          landlordId,
+          siteId,
+          unitId,
+          billId,
+          type: "CREDIT", // paying reduces dues
+          purpose: `Bill payment for Bill #${billId} via ${paymentMode}`,
+          amount,
+          transactionType: "Payment",
+          paymentMode: paymentMode,
+        },
+      },
+      {
+        status: () => ({ json: () => {} }), // dummy res object
+      }
+    );
+
+    // 🧾 4️⃣ Mark Bill as Paid
+    bill.status = "Paid";
+    bill.paidAmount = amount;
+    bill.paymentId = paymentId;
+    bill.paidAt = new Date();
+    await bill.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Bill marked as paid successfully",
+      ledger: ledgerEntry,
+      bill,
+    });
+  } catch (error) {
+    console.error("Admin Pay Bill Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+};
