@@ -23,3 +23,6 @@ const BillingSchema = new mongoose.Schema({
 
 const Billing = mongoose.model("Billing", BillingSchema);
 export default Billing;
+
+
+

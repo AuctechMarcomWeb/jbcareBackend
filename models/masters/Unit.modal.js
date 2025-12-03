@@ -20,7 +20,7 @@ const unitSchema = new mongoose.Schema(
     unitTypeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "UnitType",
-      required: true,
+      // required: true,
     },
     landlordId: {
       type: mongoose.Schema.Types.ObjectId,

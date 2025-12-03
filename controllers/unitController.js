@@ -31,7 +31,7 @@ export const createUnit = async (req, res) => {
     }
     if (!siteId) return sendError(res, "siteId is required", 400);
     // if (!projectId) return sendError(res, "projectId is required", 400);
-    if (!unitTypeId) return sendError(res, "unitTypeId is required", 400);
+    // if (!unitTypeId) return sendError(res, "unitTypeId is required", 400);
 
     // // 🔍 Check duplicate unitNumber
     // const existing = await Unit.findOne({ unitNumber: unitNumber.trim() });
