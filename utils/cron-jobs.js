@@ -8,14 +8,14 @@ cron.schedule("0 0 1 * *", async () => {
   await generateMonthlyBills();
 });
 
-cron.schedule("*/10 * * * *", async () => {
-  try {
-    console.log("Running daily buzzer check...");
+// cron.schedule("*/10 * * * *", async () => {
+//   try {
+//     console.log("Running daily buzzer check...");
 
-    await triggerComplaintBuzzer();
+//     await triggerComplaintBuzzer();
 
-    console.log("Buzzer check completed.");
-  } catch (err) {
-    console.error("Cron Error:", err.message);
-  }
-});
+//     console.log("Buzzer check completed.");
+//   } catch (err) {
+//     console.error("Cron Error:", err.message);
+//   }
+// });

@@ -499,6 +499,8 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
   }
 };
 
+
+
 export const generateMonthlyBills = async (req, res) => {
   try {
     const now = new Date();
