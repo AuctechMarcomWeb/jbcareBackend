@@ -30,6 +30,8 @@ import stockDemand from "./routes/Stocks/demandRoutes.js";
 import meterRoutes from "./routes/Bills/MeterRoutes.js";
 import ledgerRoutes from "./routes/Bills/ledgerRoutes.js";
 import transferRoutes from "./routes/Stocks/stockTransferRoutes.js";
+import electricitycharges from "./routes/masters/electricityChargesRoutes.js";
+import billsRoutes from "./routes/Bills/BillsRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -38,7 +40,8 @@ const app = express();
 const clientUrl = process.env.CLIENT_URL;
 app.use(
   cors({
-    origin: clientUrl || "*",
+    origin:["http://localhost:3000","http://192.168.1.19:3000"] ,
+    // origin: clientUrl || "*",
     credentials: true,
   })
 );
@@ -56,6 +59,7 @@ app.use("/api/landlords", landlordRoutes);
 app.use("/api/tenants", tenantRoutes);
 app.use("/api/supervisors", supervisorRoutes);
 app.use("/api/maintain-charges", maintainCharge);
+app.use("/api/electricity-charges", electricitycharges);
 app.use("/api/maintenance-bill", maintenanceBillRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/dashboard", dashboardRoutes);
@@ -70,6 +74,7 @@ app.use("/api/demand", stockDemand);
 app.use("/api/meter", meterRoutes);
 app.use("/api/ledger", ledgerRoutes);
 app.use("/api/transfer", transferRoutes);
+app.use("/api/bills", billsRoutes);
 
 app.use("/api", uploadRoutes);
 

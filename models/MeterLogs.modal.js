@@ -43,7 +43,7 @@ const meterLogSchema = new mongoose.Schema(
       {
         action: { type: String, enum: ["ON", "OFF"], required: true },
         timestamp: { type: Date, default: Date.now },
-        response: { type: Object }, // optional: external API response
+        response: { type: Object }, 
         requestedBy: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
@@ -57,3 +57,4 @@ const meterLogSchema = new mongoose.Schema(
 
 export default mongoose.models.MeterLog ||
   mongoose.model("MeterLog", meterLogSchema);
+
