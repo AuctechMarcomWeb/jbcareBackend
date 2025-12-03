@@ -331,73 +331,65 @@ export const updateLandlord = async (req, res) => {
 
     // 🧩 Handle activation/deactivation
     if (updates.hasOwnProperty("isActive")) {
-      for (const unitId of landlord.unitIds) {
-        const unit = await Unit.findById(unitId);
-        if (!unit) continue;
+      // If setting this landlord active
+      if (updates.isActive === true) {
+        // 🔥 Step 1 — Deactivate ALL other landlords
+        await Landlord.updateMany(
+          { _id: { $ne: landlordId } },
+          { isActive: false }
+        );
 
-        if (updates.isActive === false) {
-          // ✅ Close any active record for this landlord
-          const lastActive = unit.landlordHistory
-            .slice()
-            .reverse()
-            .find(
-              (h) =>
-                h.landlordId?.toString?.() === landlord._id.toString() &&
-                h.isActive === true &&
-                !h.endDate
-            );
+        // 🔥 Step 2 — Remove landlordId from all units
+        await Unit.updateMany(
+          { landlordId: { $ne: landlordId } },
+          { landlordId: null }
+        );
 
-          if (lastActive) {
-            lastActive.isActive = false;
-            lastActive.endDate = new Date();
-          } else {
-            unit.landlordHistory.push({
-              landlordId: landlord._id,
-              startDate: landlord.createdAt,
-              endDate: new Date(),
-              isActive: false,
-            });
-          }
+        // 🔥 Step 3 — Assign this landlord to his units
+        for (const unitId of landlord.unitIds) {
+          const unit = await Unit.findById(unitId);
+          if (!unit) continue;
 
-          unit.landlordId = null;
-          await unit.save();
-        } else if (updates.isActive === true) {
-          // Close previous landlord record if another active one exists
+          // Close previous landlord record if exists
           if (unit.landlordId && unit.landlordId.toString() !== landlordId) {
-            const prevId = unit.landlordId;
             const lastPrev = unit.landlordHistory
               .slice()
               .reverse()
-              .find(
-                (h) =>
-                  h.landlordId?.toString?.() === prevId.toString() &&
-                  h.isActive === true &&
-                  !h.endDate
-              );
+              .find((h) => h.isActive === true && !h.endDate);
+
             if (lastPrev) {
               lastPrev.isActive = false;
               lastPrev.endDate = new Date();
             }
           }
 
-          // ✅ Assign this landlord
           unit.landlordId = landlord._id;
 
-          // Add new active record if needed
-          const lastRecord =
-            unit.landlordHistory[unit.landlordHistory.length - 1];
-          if (
-            !lastRecord ||
-            lastRecord.landlordId?.toString() !== landlord._id.toString() ||
-            lastRecord.isActive === false
-          ) {
-            unit.landlordHistory.push({
-              landlordId: landlord._id,
-              startDate: new Date(),
-              isActive: true,
-            });
+          unit.landlordHistory.push({
+            landlordId,
+            startDate: new Date(),
+            isActive: true,
+          });
+
+          await unit.save();
+        }
+      } else if (updates.isActive === false) {
+        // 🔥 Deactivate this landlord only
+        for (const unitId of landlord.unitIds) {
+          const unit = await Unit.findById(unitId);
+          if (!unit) continue;
+
+          const lastActive = unit.landlordHistory
+            .slice()
+            .reverse()
+            .find((h) => h.isActive === true && !h.endDate);
+
+          if (lastActive) {
+            lastActive.isActive = false;
+            lastActive.endDate = new Date();
           }
 
+          unit.landlordId = null;
           await unit.save();
         }
       }
