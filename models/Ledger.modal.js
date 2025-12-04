@@ -7,19 +7,18 @@ const LedgerSchema = new mongoose.Schema(
       ref: "Landlord",
       required: true,
     },
-
     siteId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Site",
       required: true,
     },
-    type: {
-      type: String,
-    },
     unitId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Unit",
       required: true,
+    },
+    type: {
+      type: String,
     },
 
     // Bill ID (optional)
@@ -29,7 +28,7 @@ const LedgerSchema = new mongoose.Schema(
       default: null,
     },
 
-    purpose: { type: String, trim: true }, // e.g., "Electricity Bill", "Bill Payment", etc.
+    purpose: { type: String, trim: true },
 
     amount: { type: Number, default: 0 },
     // Balance tracking
@@ -50,9 +49,9 @@ const LedgerSchema = new mongoose.Schema(
       type: String,
       enum: ["Bill", "Payment", "Opening Balance"],
     },
-     paymentMode:{
-      type:String
-     },
+    paymentMode: {
+      type: String
+    },
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true }

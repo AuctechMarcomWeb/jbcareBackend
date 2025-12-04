@@ -36,6 +36,7 @@ export const createSite = async (req, res) => {
     const site = await Site.create(req.body);
 
     return sendSuccess(res, "Site created successfully", site, 201);
+
   } catch (err) {
     console.error("Create Site Error:", err);
     return sendError(res, "Failed to create site", 500, err.message);
@@ -72,9 +73,9 @@ export const getAllSites = async (req, res) => {
     // --- Search filter
     const searchTerm =
       typeof search === "string" &&
-      search.trim() !== "" &&
-      search.trim().toLowerCase() !== "null" &&
-      search.trim().toLowerCase() !== "undefined"
+        search.trim() !== "" &&
+        search.trim().toLowerCase() !== "null" &&
+        search.trim().toLowerCase() !== "undefined"
         ? search.trim()
         : null;
 
@@ -121,8 +122,8 @@ export const getAllSites = async (req, res) => {
           isPagination === "true"
             ? Math.ceil(total / limitNum)
             : total > 0
-            ? 1
-            : 0,
+              ? 1
+              : 0,
         currentPage: pageNum,
       },
       200
