@@ -11,8 +11,6 @@ const PaymentLedgerSchema = new mongoose.Schema({
 
     paymentMode: {
         type: String,
-        enum: ["Cash", "Online", "Cheque", "UPI", "BankTransfer"],
-        required: true,
     },
 
     entryType: {

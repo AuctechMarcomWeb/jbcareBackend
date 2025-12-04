@@ -1,60 +1,10 @@
 import Bills from "../models/Bills.modal.js";
 import mongoose from "mongoose";
-import { sendError, sendSuccess } from "../utils/responseHandler.js"; // optional utility
+import { sendError, sendSuccess } from "../utils/responseHandler.js";
+
 import PaymentLedger from "../models/paymentLedger.modal.js";
 
-const createBill1 = async (req, res) => {
-  try {
-    const {
-      landlordId,
-      siteId,
-      unitId,
-      fromDate,
-      toDate,
-      electricity,
-      maintenance
-    } = req.body;
 
-    if (!landlordId || !siteId || !unitId)
-      return sendError(res, "landlordId, siteId and unitId are required");
-
-    // Calculate totals if not provided
-    if (electricity) {
-      electricity.consumedUnits = electricity.currentReading - electricity.previousReading;
-      electricity.dgConsumedUnits = electricity.dgCurrentReading - electricity.dgPreviousReading;
-      electricity.electricityAmount = electricity.consumedUnits * electricity.tariffRate;
-      electricity.dgAmount = electricity.dgConsumedUnits * (electricity.dgTariff || 0);
-      electricity.surchargeAmount = ((electricity.electricityAmount + electricity.dgAmount) * (electricity.surchargePercent || 0)) / 100;
-    }
-
-    if (maintenance) {
-      maintenance.SqftAmount = maintenance.SqftArea * (maintenance.SqftRate || 0);
-      maintenance.maintenanceAmount = (maintenance.fixedAmount || 0) + maintenance.SqftAmount;
-    }
-
-    const totalAmount =
-      (electricity?.electricityAmount || 0) +
-      (electricity?.dgAmount || 0) +
-      (electricity?.surchargeAmount || 0) +
-      (maintenance?.maintenanceAmount || 0);
-
-    const bill = await Bills.create({
-      landlordId,
-      siteId,
-      unitId,
-      fromDate,
-      toDate,
-      electricity,
-      maintenance,
-      totalAmount,
-    });
-
-    return sendSuccess(res, "Bill created successfully", bill, 201);
-  } catch (error) {
-    console.error("Create Bill Error:", error);
-    return sendError(res, error.message);
-  }
-};
 export const createBill = async (req, res) => {
   try {
     const {
@@ -134,11 +84,9 @@ export const createBill = async (req, res) => {
       unitId,
     }).sort({ entryDate: -1 });
 
-    console.log("lastEntry", lastEntry);
 
     const openingBalance = lastEntry ? lastEntry?.closingBalance : 0;
 
-    console.log("lastEntry", openingBalance);
 
     const entryType = "Debit";
     const debitAmount = totalAmount;
@@ -169,8 +117,6 @@ export const createBill = async (req, res) => {
     return sendError(res, `Error: ${error.message}`);
   }
 };
-
-
 
 export const getAllBills = async (req, res) => {
   try {
@@ -245,7 +191,6 @@ export const getAllBills = async (req, res) => {
     return sendError(res, error.message);
   }
 };
-
 
 export const getBillById = async (req, res) => {
   try {
@@ -328,10 +273,6 @@ export const updateBill = async (req, res) => {
     return sendError(res, error.message);
   }
 };
-
-
-
-
 
 export const deleteBill = async (req, res) => {
   try {

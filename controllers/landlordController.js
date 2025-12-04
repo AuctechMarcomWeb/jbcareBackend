@@ -5,6 +5,7 @@ import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import { register } from "./authControllers.js";
 import { createUser } from "../utils/createUser.js";
 import Ledger from "../models/Ledger.modal.js";
+import PaymentLedger from "../models/paymentLedger.modal.js";
 
 // 🟢 Add Landlord
 export const addLandlord = async (req, res) => {
@@ -37,6 +38,7 @@ export const addLandlord = async (req, res) => {
       meterSerialNumber,
       openingBalance,
       purpose,
+      typePurpose
     } = req.body;
 
     // 🧩 Validation
@@ -93,6 +95,8 @@ export const addLandlord = async (req, res) => {
       openingBalance,
       purpose,
     });
+
+
 
     // 🔄 Update each linked unit
     for (const unitId of unitIds) {
@@ -151,6 +155,7 @@ export const addLandlord = async (req, res) => {
 
       await unit.save();
     }
+
     const createdUser = await createUser({
       name: landlord?.name,
       email: landlord?.email,
@@ -158,8 +163,8 @@ export const addLandlord = async (req, res) => {
       password: `Abc@123`,
       role: "landlord",
       referenceId: landlord?._id,
-      siteId, // ✅ from req.body
-      unitId: unitIds[0] || null, // ✅ first unit
+      siteId,
+      unitId: unitIds[0] || null,
     });
 
     // 🔹 Save user ID back to landlord
@@ -170,31 +175,108 @@ export const addLandlord = async (req, res) => {
       Number(openingBalance.amount) > 0 &&
       ["Debit", "Credit"].includes(openingBalance.type)
     ) {
-      const typePurpose =
-        openingBalance.type === "Debit" ? "Due Amount" : "Advance Amount";
-      await Ledger.create({
-        landlordId: landlord._id,
-        billId: null, // Not linked to any bill
-        siteId: landlord.siteId, // optional: remove if not needed
-        unitId: unitIds[0], // optional: remove if not needed
-        amount: openingBalance?.amount,
-        type:
-          openingBalance === "Credit"
-            ? "CREDIT"
-            : openingBalance === "Debit"
-            ? "DEBIT"
-            : null,
-        purpose: `New Opening balance added - ${typePurpose}` || purpose,
-        transactionType: "Opening Balance",
-        openingBalance: {
-          amount: openingBalance?.amount,
-          type: openingBalance.type,
-        },
-        closingBalance: {
-          amount: openingBalance?.amount,
-          type: openingBalance.type,
-        },
-      });
+
+      const landlordId = landlord._id
+
+      console.log("landlord", landlord);
+
+      const siteId = landlord.siteId
+      const unitId = unitIds[0]
+
+      const lastEntry = await PaymentLedger.findOne({
+        landlordId,
+        siteId,
+        unitId,
+      }).sort({ entryDate: -1 });
+
+      console.log("openingBalance", openingBalance);
+
+      const openingBalance1 = lastEntry ? lastEntry?.closingBalance : 0;
+
+
+      const amount = openingBalance?.amount
+
+      if (openingBalance.type == "Debit") {
+
+        const entryType = "Debit";
+        const debitAmount = amount;
+        const creditAmount = 0;
+
+        // closing balance decreases because it's debit
+        const closingBalance = openingBalance1 - debitAmount;
+
+        // ✔ Create Ledger Entry
+        await PaymentLedger.create({
+          landlordId,
+          siteId,
+          unitId,
+          remark: typePurpose ? typePurpose : "",
+          description: "",
+          paymentMode: "",
+          entryType,
+          debitAmount,
+          creditAmount,
+          openingBalance: closingBalance,
+          closingBalance,
+          entryDate: new Date(),
+        });
+
+      } else {
+        const entryType = "Credit";
+        const debitAmount = 0;
+        const creditAmount = amount;
+
+        // closing balance decreases because it's debit
+        const closingBalance = openingBalance1 + creditAmount;
+
+        // ✔ Create Ledger Entry
+        await PaymentLedger.create({
+          landlordId,
+          siteId,
+          unitId,
+          remark: typePurpose ? typePurpose : "",
+          description: "",
+          paymentMode: "",
+          entryType,
+
+          debitAmount,
+          creditAmount,
+          openingBalance: closingBalance,
+          closingBalance,
+          entryDate: new Date(),
+        });
+      }
+
+
+
+      console.log("lastEntry", lastEntry);
+
+
+      // const typePurpose =
+      //   openingBalance.type === "Debit" ? "Due Amount" : "Advance Amount";
+      // await Ledger.create({
+      //   landlordId: landlord._id,
+      //   billId: null, // Not linked to any bill
+      //   siteId: landlord.siteId, // optional: remove if not needed
+      //   unitId: unitIds[0], // optional: remove if not needed
+      //   amount: openingBalance?.amount,
+      //   type:
+      //     openingBalance === "Credit"
+      //       ? "CREDIT"
+      //       : openingBalance === "Debit"
+      //         ? "DEBIT"
+      //         : null,
+      //   purpose: `New Opening balance added - ${typePurpose}` || purpose,
+      //   transactionType: "Opening Balance",
+      //   openingBalance: {
+      //     amount: openingBalance?.amount,
+      //     type: openingBalance.type,
+      //   },
+      //   closingBalance: {
+      //     amount: openingBalance?.amount,
+      //     type: openingBalance.type,
+      //   },
+      // });
     }
 
     return sendSuccess(res, "Landlord added successfully.", landlord, 201);
