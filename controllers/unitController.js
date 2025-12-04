@@ -4,7 +4,7 @@ import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
 // ✅ Create Unit
-export const createUnit = async (req, res) => {
+export const createUnit1 = async (req, res) => {
   try {
     const {
       unitNumber,
@@ -56,6 +56,52 @@ export const createUnit = async (req, res) => {
   }
 };
 
+export const createUnit = async (req, res) => {
+  try {
+    const {
+      unitNumber,
+      block,
+      floor,
+      areaSqFt,
+      siteId,
+      projectId,
+      unitTypeId,
+      status,
+    } = req.body;
+
+    // 🔹 Validation
+    if (!unitNumber || typeof unitNumber !== "string" || unitNumber.trim() === "") {
+      return sendError(res, "unitNumber is required and must be a non-empty string", 400);
+    }
+
+    if (!siteId) return sendError(res, "siteId is required", 400);
+
+    // Prepare payload
+    const payload = {
+      unitNumber: unitNumber.trim(),
+      block,
+      floor,
+      areaSqFt,
+      siteId,
+      projectId,
+      status,
+    };
+
+    // Only include unitTypeId if it's valid
+    if (unitTypeId && unitTypeId.trim() !== "") {
+      payload.unitTypeId = unitTypeId;
+    }
+
+    const unit = await Unit.create(payload);
+
+    return sendSuccess(res, "Unit created successfully", unit, 201);
+  } catch (err) {
+    console.error("Create Unit Error:", err);
+    return sendError(res, "Failed to create Unit", 500, err.message);
+  }
+};
+
+
 export const getAllUnits = async (req, res) => {
   try {
     const {
@@ -74,7 +120,7 @@ export const getAllUnits = async (req, res) => {
     } = req.query;
 
     console.log("All unit query", req.query);
-    
+
 
     const match = {};
 
