@@ -32,6 +32,7 @@ import ledgerRoutes from "./routes/Bills/ledgerRoutes.js";
 import transferRoutes from "./routes/Stocks/stockTransferRoutes.js";
 import electricitycharges from "./routes/masters/electricityChargesRoutes.js";
 import billsRoutes from "./routes/Bills/BillsRoutes.js";
+import paymentLedgerRoutes from "./routes/Bills/paymentLedgerRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -40,7 +41,7 @@ const app = express();
 const clientUrl = process.env.CLIENT_URL;
 app.use(
   cors({
-    origin:["http://localhost:3000","http://192.168.1.19:3000"] ,
+    origin: ["http://localhost:3000", "http://192.168.1.19:3000"],
     // origin: clientUrl || "*",
     credentials: true,
   })
@@ -75,6 +76,7 @@ app.use("/api/meter", meterRoutes);
 app.use("/api/ledger", ledgerRoutes);
 app.use("/api/transfer", transferRoutes);
 app.use("/api/bills", billsRoutes);
+app.use("/api/paymentLedger", paymentLedgerRoutes);
 
 app.use("/api", uploadRoutes);
 
