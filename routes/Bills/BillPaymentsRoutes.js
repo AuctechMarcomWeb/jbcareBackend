@@ -4,7 +4,11 @@ import {
     deleteBillsPayment,
     getAllBillsPayments,
     getBillsPaymentById,
-    updateBillsPayment
+    payBillbyAdmin,
+    payBillFromLanlordWallet,
+    payByLandlordOnline,
+    updateBillsPayment,
+    verifyRazorpayPayment
 } from "../../controllers/BillPaymentsController.js";
 
 
@@ -12,6 +16,10 @@ import {
 const router = express.Router();
 
 router.post("/create", createBillsPayment);
+router.post("/payByLanlord", payBillFromLanlordWallet);
+router.post("/payByAdmin", payBillbyAdmin);
+router.post("/payByLanlordOnline", payByLandlordOnline);
+router.post("/verifyLanlordPayment", verifyRazorpayPayment);
 
 router.get("/all", getAllBillsPayments);
 

@@ -1,13 +1,12 @@
 import Landlord from "../models/LandLord.modal.js";
+
 import Unit from "../models/masters/Unit.modal.js";
 import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import { register } from "./authControllers.js";
 import { createUser } from "../utils/createUser.js";
-import Ledger from "../models/Ledger.modal.js";
 import PaymentLedger from "../models/paymentLedger.modal.js";
 
-// 🟢 Add Landlord
 export const addLandlord = async (req, res) => {
   try {
     const {
@@ -21,7 +20,7 @@ export const addLandlord = async (req, res) => {
       address,
       coorespondenceAddress,
       profilePic,
-      idProof, // { type, number, documentUrl }
+      idProof,
       siteId,
       unitIds = [],
       propertyDetails, // { propertyName, propertyType, propertyAddress, propertyDocumentsUrl }
@@ -286,7 +285,6 @@ export const addLandlord = async (req, res) => {
   }
 };
 
-// 🟡 Get Landlords (with filters + pagination + date range + latest first)
 export const getLandlords = async (req, res) => {
   try {
     const {
@@ -367,7 +365,100 @@ export const getLandlords = async (req, res) => {
   }
 };
 
-// 🟢 Get single Landlord
+export const updateLandlordStatus = async (req, res) => {
+  try {
+    const { landlordId } = req.params;
+    const { isActive } = req.body;
+
+    if (typeof isActive !== "boolean") {
+      return sendError(res, "isActive must be true or false.", 400);
+    }
+
+    const landlord = await Landlord.findById(landlordId).populate("unitIds");
+    if (!landlord) return sendError(res, "Landlord not found", 404);
+
+    const siteId = landlord.siteId;
+    const unitIds = landlord.unitIds; // This is an array of unit IDs
+
+    if (!siteId || unitIds.length === 0) {
+      return sendError(res, "Landlord must have siteId and unitIds", 400);
+    }
+
+    // =============================
+    // 1️⃣ If activating this landlord
+    // =============================
+    if (isActive === true) {
+      // ❗ Make all landlords inactive for same site + same units
+      await Landlord.updateMany(
+        {
+          siteId,
+          unitIds: { $in: unitIds },
+          _id: { $ne: landlordId },
+        },
+        { $set: { isActive: false } }
+      );
+
+      // Activate current landlord
+      landlord.isActive = true;
+      await landlord.save();
+
+      // Update unit history also
+      for (const unit of unitIds) {
+        const unitData = await Unit.findById(unit);
+
+        if (!unitData) continue;
+
+        // Inactivate all history
+        unitData.landlordHistory.forEach((h) => (h.isActive = false));
+
+        // Add new active history
+        unitData.landlordHistory.push({
+          landlordId: landlord._id,
+          startDate: new Date(),
+          isActive: true,
+        });
+
+        // Assign landlord to unit
+        unitData.landlordId = landlord._id;
+
+        await unitData.save();
+      }
+
+      return sendSuccess(res, "Landlord activated successfully", landlord);
+    }
+
+    // =============================
+    // 2️⃣ If deactivating this landlord
+    // =============================
+    landlord.isActive = false;
+    await landlord.save();
+
+    // Optional: Update unit history
+    for (const unit of unitIds) {
+      const unitData = await Unit.findById(unit);
+      if (!unitData) continue;
+
+      // update history
+      const activeEntry = unitData.landlordHistory.find(
+        (h) => h.landlordId.toString() === landlordId && h.isActive === true
+      );
+
+      if (activeEntry) {
+        activeEntry.isActive = false;
+        activeEntry.endDate = new Date();
+      }
+
+      await unitData.save();
+    }
+
+    return sendSuccess(res, "Landlord deactivated successfully", landlord);
+
+  } catch (error) {
+    console.error(error);
+    return sendError(res, "Server Error", 500, error.message);
+  }
+};
+
 export const getLandlordById = async (req, res) => {
   if (req?.params?.id === undefined || req?.params?.id === null) {
     return sendError(
@@ -390,9 +481,8 @@ export const getLandlordById = async (req, res) => {
   }
 };
 
-// 🟡 Update Landlord
 export const updateLandlord = async (req, res) => {
-  if (req?.params?.id === undefined || req?.params?.id === null) {
+  if (!req?.params?.id) {
     return sendError(
       res,
       "Landlord ID is required",
@@ -400,84 +490,24 @@ export const updateLandlord = async (req, res) => {
       "Landlord ID is missing"
     );
   }
+
   if (Object.keys(req.body).length === 0) {
     return sendError(res, "No data provided for update", 400, "Empty body");
   }
 
   try {
     const landlordId = req.params.id;
-    const updates = req.body;
+    let updates = { ...req.body };
+
+    // ⛔ Skip isActive even if user sends it
+    if (updates.hasOwnProperty("isActive")) {
+      delete updates.isActive;
+    }
 
     const landlord = await Landlord.findById(landlordId);
     if (!landlord) return sendError(res, "Landlord not found.", 404);
 
-    // 🧩 Handle activation/deactivation
-    if (updates.hasOwnProperty("isActive")) {
-      // If setting this landlord active
-      if (updates.isActive === true) {
-        // 🔥 Step 1 — Deactivate ALL other landlords
-        await Landlord.updateMany(
-          { _id: { $ne: landlordId } },
-          { isActive: false }
-        );
-
-        // 🔥 Step 2 — Remove landlordId from all units
-        await Unit.updateMany(
-          { landlordId: { $ne: landlordId } },
-          { landlordId: null }
-        );
-
-        // 🔥 Step 3 — Assign this landlord to his units
-        for (const unitId of landlord.unitIds) {
-          const unit = await Unit.findById(unitId);
-          if (!unit) continue;
-
-          // Close previous landlord record if exists
-          if (unit.landlordId && unit.landlordId.toString() !== landlordId) {
-            const lastPrev = unit.landlordHistory
-              .slice()
-              .reverse()
-              .find((h) => h.isActive === true && !h.endDate);
-
-            if (lastPrev) {
-              lastPrev.isActive = false;
-              lastPrev.endDate = new Date();
-            }
-          }
-
-          unit.landlordId = landlord._id;
-
-          unit.landlordHistory.push({
-            landlordId,
-            startDate: new Date(),
-            isActive: true,
-          });
-
-          await unit.save();
-        }
-      } else if (updates.isActive === false) {
-        // 🔥 Deactivate this landlord only
-        for (const unitId of landlord.unitIds) {
-          const unit = await Unit.findById(unitId);
-          if (!unit) continue;
-
-          const lastActive = unit.landlordHistory
-            .slice()
-            .reverse()
-            .find((h) => h.isActive === true && !h.endDate);
-
-          if (lastActive) {
-            lastActive.isActive = false;
-            lastActive.endDate = new Date();
-          }
-
-          unit.landlordId = null;
-          await unit.save();
-        }
-      }
-    }
-
-    // ✅ Update landlord
+    // 🟢 Only update allowed fields (except isActive)
     const updatedLandlord = await Landlord.findByIdAndUpdate(
       landlordId,
       updates,
@@ -496,7 +526,7 @@ export const updateLandlord = async (req, res) => {
   }
 };
 
-// 🔴 Delete / Archive Landlord
+
 export const deleteLandlord = async (req, res) => {
   if (req?.params?.id === undefined || req?.params?.id === null) {
     return sendError(
