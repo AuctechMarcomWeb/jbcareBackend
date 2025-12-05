@@ -4,7 +4,9 @@ import Billing from "../models/Billing.modal.js";
 import Landlord from "../models/LandLord.modal.js";
 
 import MaintainCharges from "../models/MantainCharge.modal.js";
+
 import Unit from "../models/masters/Unit.modal.js";
+
 import Tenant from "../models/Tenant.modal.js";
 import MeterLogs from "../models/MeterLogs.modal.js";
 import Ledger from "../models/Ledger.modal.js";
@@ -30,7 +32,7 @@ export const createBilling = async (req, res) => {
         },
       },
       {
-        status: () => ({ json: () => {} }), // dummy res object
+        status: () => ({ json: () => { } }), // dummy res object
       }
     );
 
@@ -151,7 +153,7 @@ export const updateBilling = async (req, res) => {
           },
         },
         {
-          status: () => ({ json: () => {} }),
+          status: () => ({ json: () => { } }),
         }
       );
     }
@@ -377,11 +379,11 @@ export const getAllLandlordsBillingSummary = async (req, res) => {
 
       const searchedBills = search
         ? allBills.filter(
-            (b) =>
-              b?.siteId?.siteName?.match(searchRegex) ||
-              b?.unitId?.unitNumber?.match(searchRegex) ||
-              (b?.status || "").match(searchRegex)
-          )
+          (b) =>
+            b?.siteId?.siteName?.match(searchRegex) ||
+            b?.unitId?.unitNumber?.match(searchRegex) ||
+            (b?.status || "").match(searchRegex)
+        )
         : allBills;
 
       const paidBills = searchedBills.filter((b) => b.status === "Paid");
@@ -795,7 +797,7 @@ export const adminPayBill = async (req, res) => {
         },
       },
       {
-        status: () => ({ json: () => {} }), // dummy res object
+        status: () => ({ json: () => { } }), // dummy res object
       }
     );
 

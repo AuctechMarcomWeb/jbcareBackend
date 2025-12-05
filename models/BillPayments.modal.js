@@ -19,6 +19,10 @@ const BillsPaymentsSchema = new mongoose.Schema(
             ref: "Unit",
             required: true,
         },
+        billId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Bills",
+        },
 
         totalAmount: { type: Number, required: true },
 

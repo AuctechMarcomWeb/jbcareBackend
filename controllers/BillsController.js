@@ -1,9 +1,1047 @@
 import Bills from "../models/Bills.modal.js";
+
 import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
+import Landlord from "../models/LandLord.modal.js";
+import Unit from "../models/masters/Unit.modal.js";
+import MaintainCharges from "../models/MantainCharge.modal.js";
+import electricityCharges from "../models/ElectricitychargesRate.modal.js";
 
 import PaymentLedger from "../models/paymentLedger.modal.js";
+import axios from "axios";
 
+
+const createBillForAll1 = async (req, res) => {
+  try {
+
+
+    const now = new Date();
+
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+
+    const fromDate = new Date(Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0));
+
+    const toDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, daysInLastMonth, 23, 59, 59)
+    );
+
+    console.log("fromDate", fromDate);
+    console.log("toDate", toDate);
+
+    const landlords = await Landlord.find({ isActive: true }).populate(
+      "unitIds"
+    );
+
+
+    if (!landlords.length) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No active landlords found." });
+    }
+
+    console.log("landlords", landlords);
+
+
+
+
+
+
+    const bill = {
+
+    }
+
+    return sendSuccess(res, bill, "Bill created successfully");
+  } catch (error) {
+    return sendError(res, `Error: ${error.message}`);
+  }
+};
+
+const createBillForAll2 = async (req, res) => {
+  try {
+    // ===============================
+    // 1️⃣ LAST MONTH DATE RANGE
+    // ===============================
+    const now = new Date();
+
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const daysInLastMonth = new Date(
+      lastMonthYear,
+      lastMonth + 1,
+      0
+    ).getDate();
+
+    const fromDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0)
+    );
+    const toDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, daysInLastMonth, 23, 59, 59)
+    );
+
+    // ===============================
+    // 2️⃣ FETCH ACTIVE LANDLORDS
+    // ===============================
+    const landlords = await Landlord.find({ isActive: true }).populate(
+      "unitIds"
+    );
+
+    if (!landlords.length) {
+      return sendError(res, "No active landlords found");
+    }
+
+    const generatedBills = [];
+
+    // ===============================
+    // 3️⃣ LOOP THROUGH LANDLORDS
+    // ===============================
+    for (const landlord of landlords) {
+      if (!landlord.unitIds || landlord.unitIds.length === 0) continue;
+
+      for (const unit of landlord.unitIds) {
+        // ------------------------------------
+        // 4️⃣ Fetch Maintenance Charge (per unit)
+        // ------------------------------------
+        const maintain = await MaintainCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let maintenanceBreakup = null;
+        let maintenanceAmount = 0;
+
+        if (maintain) {
+          if (maintain.rateType === "per_sqft") {
+            maintenanceAmount = maintain.rateValue * (unit.areaSqFt || 0);
+            maintenanceBreakup = {
+              rateType: "per_sqft",
+              SqftRate: maintain.rateValue,
+              SqftArea: unit.areaSqFt || 0,
+              SqftAmount: maintenanceAmount,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          } else {
+            maintenanceAmount = maintain.rateValue;
+            maintenanceBreakup = {
+              rateType: "fixed",
+              fixedAmount: maintain.rateValue,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          }
+        }
+
+        // -------------------------------
+        // 5️⃣ Static Electricity Values
+        // -------------------------------
+        const electricityBreakup = {
+          previousReading: 100,
+          currentReading: 180,
+          consumedUnits: 80,
+          dgPreviousReading: 20,
+          dgCurrentReading: 40,
+          dgConsumedUnits: 20,
+          tariffRate: 8,
+          dgTariff: 12,
+          surchargePercent: 5,
+          electricityAmount: 80 * 8, // = 640
+          dgAmount: 20 * 12, // = 240
+          surchargeAmount: ((640 + 240) * 5) / 100,
+        };
+
+        const electricityTotal =
+          electricityBreakup.electricityAmount +
+          electricityBreakup.dgAmount +
+          electricityBreakup.surchargeAmount;
+
+        // -------------------------------
+        // 6️⃣ FINAL BILL AMOUNT
+        // -------------------------------
+        const totalAmount = electricityTotal + maintenanceAmount;
+
+        // -------------------------------
+        // 7️⃣ Create Bill Object
+        // -------------------------------
+        const newBill = await Bills.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+          electricity: electricityBreakup,
+          maintenance: maintenanceBreakup,
+          totalAmount,
+          lastUpdatedDate: new Date().toISOString(),
+          status: "Unpaid",
+        });
+
+        generatedBills.push(newBill);
+      }
+    }
+
+    return sendSuccess(
+      res,
+      generatedBills,
+      "Bills generated successfully for all landlords"
+    );
+  } catch (error) {
+    return sendError(res, `Error: ${error.message}`);
+  }
+};
+
+const createBillForAll3 = async (req, res) => {
+  try {
+    // ===============================
+    // 1️⃣ LAST MONTH DATE RANGE
+    // ===============================
+    const now = new Date();
+
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const daysInLastMonth = new Date(
+      lastMonthYear,
+      lastMonth + 1,
+      0
+    ).getDate();
+
+    const fromDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0)
+    );
+    const toDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, daysInLastMonth, 23, 59, 59)
+    );
+
+    // ===============================
+    // 2️⃣ FETCH ACTIVE LANDLORDS
+    // ===============================
+    const landlords = await Landlord.find({ isActive: true }).populate(
+      "unitIds"
+    );
+
+    if (!landlords.length) {
+      return sendError(res, "No active landlords found");
+    }
+
+    const generatedBills = [];
+
+    // ===============================
+    // 3️⃣ LOOP THROUGH LANDLORDS
+    // ===============================
+    for (const landlord of landlords) {
+      if (!landlord.unitIds || landlord.unitIds.length === 0) continue;
+
+      for (const unit of landlord.unitIds) {
+
+        // ===============================
+        // 🔥 4️⃣ DUPLICATE BILL CHECK
+        // ===============================
+        const existingBill = await Bills.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate
+        });
+
+        if (existingBill) {
+          console.log(
+            `Duplicate Bill Skipped → Landlord: ${landlord._id}, Unit: ${unit._id}`
+          );
+          continue; // Skip this unit, bill already generated
+        }
+
+        // ------------------------------------
+        // 5️⃣ Fetch Maintenance Charge (per unit)
+        // ------------------------------------
+        const maintain = await MaintainCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let maintenanceBreakup = null;
+        let maintenanceAmount = 0;
+
+        if (maintain) {
+          if (maintain.rateType === "per_sqft") {
+            maintenanceAmount = maintain.rateValue * (unit.areaSqFt || 0);
+            maintenanceBreakup = {
+              rateType: "per_sqft",
+              SqftRate: maintain.rateValue,
+              SqftArea: unit.areaSqFt || 0,
+              SqftAmount: maintenanceAmount,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          } else {
+            maintenanceAmount = maintain.rateValue;
+            maintenanceBreakup = {
+              rateType: "fixed",
+              fixedAmount: maintain.rateValue,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          }
+        }
+
+        // -------------------------------
+        // 6️⃣ Static Electricity Values
+        // -------------------------------
+        const electricityBreakup = {
+          previousReading: 100,
+          currentReading: 180,
+          consumedUnits: 80,
+          dgPreviousReading: 20,
+          dgCurrentReading: 40,
+          dgConsumedUnits: 20,
+          tariffRate: 8,
+          dgTariff: 12,
+          surchargePercent: 5,
+          electricityAmount: 80 * 8, // = 640
+          dgAmount: 20 * 12, // = 240
+          surchargeAmount: ((640 + 240) * 5) / 100,
+        };
+
+        const electricityTotal =
+          electricityBreakup.electricityAmount +
+          electricityBreakup.dgAmount +
+          electricityBreakup.surchargeAmount;
+
+        // -------------------------------
+        // 7️⃣ FINAL BILL AMOUNT
+        // -------------------------------
+        const totalAmount = electricityTotal + maintenanceAmount;
+
+        // -------------------------------
+        // 8️⃣ CREATE BILL
+        // -------------------------------
+        const newBill = await Bills.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+          electricity: electricityBreakup,
+          maintenance: maintenanceBreakup,
+          totalAmount,
+          lastUpdatedDate: new Date().toISOString(),
+          status: "Unpaid",
+        });
+
+        generatedBills.push(newBill);
+      }
+    }
+
+    return sendSuccess(
+      res,
+      generatedBills,
+      "Bills generated successfully for all landlords"
+    );
+  } catch (error) {
+    return sendError(res, `Error: ${error.message}`);
+  }
+};
+
+const createBillForAll4 = async (req, res) => {
+  try {
+    // ===============================
+    // 1️⃣ LAST MONTH DATE RANGE
+    // ===============================
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+
+    const fromDate = new Date(Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0));
+    const toDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, daysInLastMonth, 23, 59, 59)
+    );
+
+    // ===============================
+    // 2️⃣ FETCH ACTIVE LANDLORDS
+    // ===============================
+    const landlords = await Landlord.find({ isActive: true }).populate(
+      "unitIds"
+    );
+
+    if (!landlords.length) {
+      return sendError(res, "No active landlords found");
+    }
+
+    const generatedBills = [];
+
+    // ===============================
+    // 3️⃣ LOOP THROUGH LANDLORDS
+    // ===============================
+    for (const landlord of landlords) {
+      if (!landlord.unitIds || landlord.unitIds.length === 0) continue;
+
+      for (const unit of landlord.unitIds) {
+        // ===============================
+        // 4️⃣ DUPLICATE BILL CHECK
+        // ===============================
+        const existingBill = await Bills.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+        });
+
+        if (existingBill) continue;
+
+        // =========================================
+        // 5️⃣ FETCH ELECTRICITY CHARGES FROM MASTER
+        // =========================================
+        const charge = await electricityCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        if (!charge) {
+          console.log("⚠ No electricity charge found for unit ", unit._id);
+          continue;
+        }
+
+        // =========================================
+        // 6️⃣ API CALL FOR ELECTRICITY ENERGY DATA
+        // =========================================
+        if (!landlord.customerId || !landlord.meterSerialNumber) {
+          console.log("⚠ Missing customerId or meterSerialNumber");
+          continue;
+        }
+
+        const payload = {
+          CustomerID: landlord.customerId,
+          MeterSerialNumber: landlord.meterSerialNumber,
+        };
+
+        const energyRes = await axios.post(
+          "http://103.245.34.54:9000/api/Dashboard/EnergyConsumption",
+          payload,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          }
+        );
+
+        const energy = energyRes?.data?.Data;
+
+        console.log("energy0", energy);
+
+        if (!energy) continue;
+
+        // =========================================
+        // 7️⃣ CALCULATE ELECTRICITY UNITS & AMOUNT
+        // =========================================
+        const previousReading = energy.StartingMainReadingOfMonth || 0;
+        const currentReading = energy.ClosingMainsReadingOfMonth || 0;
+        const mainUnits = energy.sumEnergyMain || 0;
+        const dgPreviousReading = energy.StartDGReadingOfMonth || 0;
+        const dgCurrentReading = energy.ClosingDGReadingOfMonth || 0;
+        const dgUnits = energy.sumEnergyDG || 0;
+        const tariffRate = charge.tariffGrid || 0;
+        const dgTariff = charge.dgTariff || 0;
+        const surchargePercent = charge.surchargePercent || 0;
+
+
+        const mainAmount = mainUnits * charge.tariffGrid;
+        const dgAmount = dgUnits * charge.dgTariff;
+
+        const surchargeAmount =
+          ((mainAmount + dgAmount) * (charge.surchargePercent || 0)) / 100;
+
+
+
+        const electricityTotal = mainAmount + dgAmount + surchargeAmount;
+
+        // =====================================
+        // 8️⃣ MAINTENANCE CHARGES (AS BEFORE)
+        // =====================================
+        const maintain = await MaintainCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let maintenanceBreakup = null;
+        let maintenanceAmount = 0;
+
+        if (maintain) {
+          if (maintain.rateType === "per_sqft") {
+            maintenanceAmount = maintain.rateValue * (unit.areaSqFt || 0);
+
+            maintenanceBreakup = {
+              rateType: "per_sqft",
+              SqftRate: maintain.rateValue,
+              SqftArea: unit.areaSqFt || 0,
+              SqftAmount: maintenanceAmount,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          } else {
+            maintenanceAmount = maintain.rateValue;
+
+            maintenanceBreakup = {
+              rateType: "fixed",
+              fixedAmount: maintain.rateValue,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          }
+        }
+
+        // =====================================
+        // 9️⃣ FINAL TOTAL AMOUNT
+        // =====================================
+        const totalAmount = electricityTotal + maintenanceAmount;
+
+        // =====================================
+        // 🔟 SAVE ELECTRICITY SECTION
+        // =====================================
+        const electricityBreakup = {
+          previousReading: previousReading,
+          currentReading: currentReading,
+          consumedUnits: mainUnits,
+          dgPreviousReading: dgPreviousReading,
+          dgCurrentReading: dgCurrentReading,
+          dgConsumedUnits: dgUnits,
+          tariffRate: tariffRate,
+          dgTariff: dgTariff,
+          surchargePercent: surchargePercent,
+          electricityAmount: mainAmount,
+          dgAmount: dgAmount,
+          surchargeAmount: surchargeAmount,
+        };
+
+
+        // =====================================
+        // 1️⃣1️⃣ CREATE BILL
+        // =====================================
+        const newBill = await Bills.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+          electricity: electricityBreakup,
+          maintenance: maintenanceBreakup,
+          totalAmount,
+          lastUpdatedDate: new Date().toISOString(),
+          status: "Unpaid",
+        });
+
+        generatedBills.push(newBill);
+      }
+    }
+
+    return sendSuccess(
+      res,
+      generatedBills,
+      "Bills generated successfully with electricity API"
+    );
+  } catch (error) {
+    return sendError(res, `Error: ${error.message}`);
+  }
+};
+
+const createBillForAll5 = async (req, res) => {
+  try {
+    console.log("============== GENERATING MONTHLY BILLS ==============");
+
+    // ===============================  
+    // 1️⃣ LAST MONTH DATE RANGE  
+    // ===============================  
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+
+    const fromDate = new Date(Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0));
+    const toDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, daysInLastMonth, 23, 59, 59)
+    );
+
+    // ===============================  
+    // 2️⃣ GET ALL ACTIVE LANDLORDS  
+    // ===============================  
+    const landlords = await Landlord.find({ isActive: true }).populate(
+      "unitIds"
+    );
+
+    if (!landlords.length) {
+      return sendError(res, "No active landlords found");
+    }
+
+    const generatedBills = [];
+
+    console.log("Total Landlords Found:", landlords.length);
+
+    // ===============================  
+    // 3️⃣ LOOP THROUGH LANDLORDS  
+    // ===============================  
+    for (const landlord of landlords) {
+      console.log("\n----------------------------------------");
+      console.log("Processing Landlord:", landlord._id);
+
+      if (!landlord.unitIds || landlord.unitIds.length === 0) {
+        console.log("⛔ SKIPPED: No units found");
+        continue;
+      }
+
+      for (const unit of landlord.unitIds) {
+        console.log("  → Processing Unit:", unit._id);
+
+        // ===============================
+        // 4️⃣ CHECK DUPLICATE BILL
+        // ===============================
+        const existingBill = await Bills.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+        });
+
+        if (existingBill) {
+          console.log("  ⛔ SKIPPED (Duplicate Bill Exists)");
+          continue;
+        }
+
+        // ===============================
+        // 5️⃣ GET ELECTRICITY CHARGES
+        // ===============================
+        const charge = await electricityCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let tariffRate = charge?.tariffGrid || 0;
+        let dgTariff = charge?.dgTariff || 0;
+        let surchargePercent = charge?.surchargePercent || 0;
+
+        // ===============================
+        // 6️⃣ GET ELECTRICITY API DATA (OPTIONAL)
+        // ===============================
+        let previousReading = 0;
+        let currentReading = 0;
+        let mainUnits = 0;
+        let dgPreviousReading = 0;
+        let dgCurrentReading = 0;
+        let dgUnits = 0;
+
+        if (landlord.customerId && landlord.meterSerialNumber) {
+          try {
+            const payload = {
+              CustomerID: landlord.customerId,
+              MeterSerialNumber: landlord.meterSerialNumber,
+            };
+
+            const energyRes = await axios.post(
+              "http://103.245.34.54:9000/api/Dashboard/EnergyConsumption",
+              payload
+            );
+
+            const energy = energyRes?.data?.Data;
+
+            if (energy) {
+              previousReading = energy.StartingMainReadingOfMonth || 0;
+              currentReading = energy.ClosingMainsReadingOfMonth || 0;
+              mainUnits = energy.sumEnergyMain || 0;
+
+              dgPreviousReading = energy.StartDGReadingOfMonth || 0;
+              dgCurrentReading = energy.ClosingDGReadingOfMonth || 0;
+              dgUnits = energy.sumEnergyDG || 0;
+            } else {
+              console.log("  ⚠ No Energy Data — using 0 units");
+            }
+          } catch (err) {
+            console.log("  ⚠ API ERROR — using 0 units");
+          }
+        } else {
+          console.log("  ⚠ Missing customerId/meterSerialNumber — using 0 units");
+        }
+
+        // ===============================
+        // 7️⃣ ELECTRICITY CALCULATIONS
+        // ===============================
+        const mainAmount = mainUnits * tariffRate;
+        const dgAmount = dgUnits * dgTariff;
+
+        const surchargeAmount =
+          ((mainAmount + dgAmount) * surchargePercent) / 100;
+
+        const electricityTotal = mainAmount + dgAmount + surchargeAmount;
+
+        // ===============================
+        // 8️⃣ MAINTENANCE CHARGES
+        // ===============================
+        const maintain = await MaintainCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let maintenanceAmount = 0;
+        let maintenanceBreakup = null;
+
+        if (maintain) {
+          if (maintain.rateType === "per_sqft") {
+            maintenanceAmount = maintain.rateValue * (unit.areaSqFt || 0);
+
+            maintenanceBreakup = {
+              rateType: "per_sqft",
+              SqftRate: maintain.rateValue,
+              SqftArea: unit.areaSqFt || 0,
+              SqftAmount: maintenanceAmount,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          } else {
+            maintenanceAmount = maintain.rateValue;
+
+            maintenanceBreakup = {
+              rateType: "fixed",
+              fixedAmount: maintain.rateValue,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          }
+        }
+
+        // ===============================
+        // 9️⃣ FINAL AMOUNT
+        // ===============================
+        const totalAmount = electricityTotal + maintenanceAmount;
+
+        // ===============================
+        // 🔟 ELECTRICITY BREAKUP
+        // ===============================
+        const electricityBreakup = {
+          previousReading,
+          currentReading,
+          consumedUnits: mainUnits,
+          dgPreviousReading,
+          dgCurrentReading,
+          dgConsumedUnits: dgUnits,
+          tariffRate,
+          dgTariff,
+          surchargePercent,
+          electricityAmount: mainAmount,
+          dgAmount,
+          surchargeAmount,
+        };
+
+        // ===============================
+        // 1️⃣1️⃣ CREATE BILL
+        // ===============================
+        const newBill = await Bills.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+          electricity: electricityBreakup,
+          maintenance: maintenanceBreakup,
+          totalAmount,
+          lastUpdatedDate: new Date().toISOString(),
+          status: "Unpaid",
+        });
+
+        console.log("  ✔ Bill Created:", newBill._id);
+        generatedBills.push(newBill);
+      }
+    }
+
+    return sendSuccess(
+      res,
+      generatedBills,
+      "Bills generated successfully for ALL landlords"
+    );
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, `Error: ${error.message}`);
+  }
+};
+
+export const createBillForAll = async (req, res) => {
+  try {
+    console.log("============== GENERATING MONTHLY BILLS ==============");
+
+    // ===============================
+    // 1️⃣ LAST MONTH DATE RANGE
+    // ===============================
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+
+    const fromDate = new Date(Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0));
+    const toDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, daysInLastMonth, 23, 59, 59)
+    );
+
+    // ===============================
+    // 2️⃣ GET ALL ACTIVE LANDLORDS
+    // ===============================
+    const landlords = await Landlord.find({ isActive: true }).populate("unitIds");
+
+    if (!landlords.length) {
+      return sendError(res, "No active landlords found");
+    }
+
+    const generatedBills = [];
+
+    console.log("Total Landlords Found:", landlords.length);
+
+    // ===============================
+    // 3️⃣ LOOP THROUGH LANDLORDS
+    // ===============================
+    for (const landlord of landlords) {
+      console.log("\n----------------------------------------");
+      console.log("Processing Landlord:", landlord._id);
+
+      if (!landlord.unitIds || landlord.unitIds.length === 0) {
+        console.log("⛔ SKIPPED: No units found");
+        continue;
+      }
+
+      // ===============================
+      // EACH UNIT
+      // ===============================
+      for (const unit of landlord.unitIds) {
+        console.log("  → Processing Unit:", unit._id);
+
+        // ===============================
+        // 4️⃣ CHECK DUPLICATE BILL
+        // ===============================
+        const existingBill = await Bills.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+        });
+
+        if (existingBill) {
+          console.log("  ⛔ SKIPPED (Duplicate Bill Exists)");
+          continue;
+        }
+
+        // ===============================
+        // 5️⃣ GET ELECTRICITY CHARGES
+        // ===============================
+        const charge = await electricityCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let tariffRate = charge?.tariffGrid || 0;
+        let dgTariff = charge?.dgTariff || 0;
+        let surchargePercent = charge?.surchargePercent || 0;
+
+        // ===============================
+        // 6️⃣ GET ELECTRICITY API DATA
+        // ===============================
+        let previousReading = 0,
+          currentReading = 0,
+          mainUnits = 0,
+          dgPreviousReading = 0,
+          dgCurrentReading = 0,
+          dgUnits = 0;
+
+        if (landlord.customerId && landlord.meterSerialNumber) {
+          try {
+            const payload = {
+              CustomerID: landlord.customerId,
+              MeterSerialNumber: landlord.meterSerialNumber,
+            };
+
+            const energyRes = await axios.post(
+              "http://103.245.34.54:9000/api/Dashboard/EnergyConsumption",
+              payload
+            );
+
+            const energy = energyRes?.data?.Data;
+
+            if (energy) {
+              previousReading = energy.StartingMainReadingOfMonth || 0;
+              currentReading = energy.ClosingMainsReadingOfMonth || 0;
+              mainUnits = energy.sumEnergyMain || 0;
+              dgPreviousReading = energy.StartDGReadingOfMonth || 0;
+              dgCurrentReading = energy.ClosingDGReadingOfMonth || 0;
+              dgUnits = energy.sumEnergyDG || 0;
+            }
+          } catch (err) {
+            console.log("⚠ API ERROR — using 0 units");
+          }
+        }
+
+        // ===============================
+        // 7️⃣ ELECTRICITY CALCULATIONS
+        // ===============================
+        const mainAmount = mainUnits * tariffRate;
+        const dgAmount = dgUnits * dgTariff;
+        const surchargeAmount = ((mainAmount + dgAmount) * surchargePercent) / 100;
+
+        const electricityTotal = mainAmount + dgAmount + surchargeAmount;
+
+        // ===============================
+        // 8️⃣ MAINTENANCE CHARGES
+        // ===============================
+        const maintain = await MaintainCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let maintenanceAmount = 0;
+        let maintenanceBreakup = null;
+
+        if (maintain) {
+          if (maintain.rateType === "per_sqft") {
+            maintenanceAmount = maintain.rateValue * (unit.areaSqFt || 0);
+
+            maintenanceBreakup = {
+              rateType: "per_sqft",
+              SqftRate: maintain.rateValue,
+              SqftArea: unit.areaSqFt || 0,
+              SqftAmount: maintenanceAmount,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          } else {
+            maintenanceAmount = maintain.rateValue;
+
+            maintenanceBreakup = {
+              rateType: "fixed",
+              fixedAmount: maintain.rateValue,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          }
+        }
+
+        // ===============================
+        // 9️⃣ FINAL BILL AMOUNT
+        // ===============================
+        const totalAmount = electricityTotal + maintenanceAmount;
+
+        // ===============================
+        // 🔟 ELECTRICITY BREAKUP
+        // ===============================
+        const electricityBreakup = {
+          previousReading,
+          currentReading,
+          consumedUnits: mainUnits,
+          dgPreviousReading,
+          dgCurrentReading,
+          dgConsumedUnits: dgUnits,
+          tariffRate,
+          dgTariff,
+          surchargePercent,
+          electricityAmount: mainAmount,
+          dgAmount,
+          surchargeAmount,
+        };
+
+        // ===============================
+        // 1️⃣1️⃣ CREATE BILL
+        // ===============================
+        const newBill = await Bills.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+          electricity: electricityBreakup,
+          maintenance: maintenanceBreakup,
+          totalAmount,
+          lastUpdatedDate: new Date(),
+          status: "Unpaid",
+        });
+
+        console.log("  ✔ Bill Created:", newBill._id);
+
+        // ==========================================
+        // 1️⃣2️⃣ CREATE LEDGER ENTRY (AUTO LIKE SINGLE BILL)
+        // ==========================================
+        const lastEntry = await PaymentLedger.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+        }).sort({ entryDate: -1 });
+
+        const openingBalance = lastEntry ? lastEntry.closingBalance : 0;
+
+        const entryType = "Debit";
+        const debitAmount = totalAmount;
+        const creditAmount = 0;
+
+        const closingBalance = openingBalance - debitAmount;
+
+        await PaymentLedger.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          remark: "Bill Generated",
+          description: "Monthly Bill Added",
+          paymentMode: "Online",
+          entryType,
+          debitAmount,
+          creditAmount,
+          openingBalance,
+          closingBalance,
+          entryDate: new Date(),
+        });
+
+        // ==========================================
+        generatedBills.push(newBill);
+      }
+    }
+
+    return sendSuccess(
+      res,
+      generatedBills,
+      "Bills & Ledger entries generated successfully for ALL landlords"
+    );
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, `Error: ${error.message}`);
+  }
+};
 
 export const createBill = async (req, res) => {
   try {
@@ -102,7 +1140,7 @@ export const createBill = async (req, res) => {
       unitId,
       remark: "Bill Generated",
       description: "Monthly Bill Added",
-      paymentMode: "Online", // set if needed
+      paymentMode: "Online",
       entryType,
       debitAmount,
       creditAmount,
@@ -191,6 +1229,101 @@ export const getAllBills = async (req, res) => {
     return sendError(res, error.message);
   }
 };
+
+export const getBillingSummary = async (req, res) => {
+  try {
+    const { landlordId, siteId, fromDate, toDate } = req.query;
+
+    const filters = {};
+    if (landlordId) filters.landlordId = landlordId;
+    if (siteId) filters.siteId = siteId;
+
+    // 1️⃣ Date filters
+    if (fromDate && toDate) {
+      filters.generatedOn = {
+        $gte: new Date(fromDate),
+        $lte: new Date(toDate)
+      };
+    }
+
+    // 2️⃣ Fetch bills according to filters
+    const bills = await Bills.find(filters).lean();
+
+    let maintenanceTotal = 0;
+    let maintenanceCollected = 0;
+
+    let electricityTotal = 0;
+    let electricityCollected = 0;
+
+    bills.forEach(bill => {
+      // ---- Maintenance ----
+      if (bill.maintenance?.maintenanceAmount) {
+        maintenanceTotal += bill.maintenance.maintenanceAmount;
+
+        if (bill.status === "Paid") {
+          maintenanceCollected += bill.maintenance.maintenanceAmount;
+        }
+      }
+
+      // ---- Electricity ----
+      if (bill.electricity?.electricityAmount) {
+        const totalElec =
+          bill.electricity.electricityAmount +
+          (bill.electricity.dgAmount || 0) +
+          (bill.electricity.surchargeAmount || 0);
+
+        electricityTotal += totalElec;
+
+        if (bill.status === "Paid") {
+          electricityCollected += totalElec;
+        }
+      }
+    });
+
+    const summary = {
+      maintenance: {
+        total: maintenanceTotal,
+        collected: maintenanceCollected,
+        pending: maintenanceTotal - maintenanceCollected,
+        percent: maintenanceTotal === 0 ? 0 : (maintenanceCollected / maintenanceTotal) * 100,
+      },
+      electricity: {
+        total: electricityTotal,
+        collected: electricityCollected,
+        pending: electricityTotal - electricityCollected,
+        percent: electricityTotal === 0 ? 0 : (electricityCollected / electricityTotal) * 100,
+      },
+      total: {
+        total: maintenanceTotal + electricityTotal,
+        collected: maintenanceCollected + electricityCollected,
+        pending: (maintenanceTotal - maintenanceCollected) + (electricityTotal - electricityCollected),
+        percent:
+          (maintenanceTotal + electricityTotal) === 0
+            ? 0
+            : ((maintenanceCollected + electricityCollected) /
+              (maintenanceTotal + electricityTotal)) *
+            100
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Billing summary fetched successfully",
+      data: summary
+    });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
+
+
+
 
 export const getBillById = async (req, res) => {
   try {
