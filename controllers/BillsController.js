@@ -1471,7 +1471,7 @@ export const getAllBills = async (req, res) => {
     // FETCH BILLS
     // --------------------------------
     const bills = await Bills.find(filters)
-      .populate("landlordId", "name")
+      .populate("landlordId", "name meterSerialNumber meterId customerId")
       .populate("tenantId", "name")
       .populate("siteId", "siteName")
       .populate("unitId", "unitNumber")
