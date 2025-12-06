@@ -3,6 +3,7 @@ import Bills from "../models/Bills.modal.js";
 import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import Landlord from "../models/LandLord.modal.js";
+import Tenant from "../models/Tenant.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import MaintainCharges from "../models/MantainCharge.modal.js";
 import electricityCharges from "../models/ElectricitychargesRate.modal.js";
@@ -791,7 +792,7 @@ const createBillForAll5 = async (req, res) => {
   }
 };
 
-export const createBillForAll = async (req, res) => {
+export const createBillForAll6 = async (req, res) => {
   try {
     console.log("============== GENERATING MONTHLY BILLS ==============");
 
@@ -1042,6 +1043,278 @@ export const createBillForAll = async (req, res) => {
     return sendError(res, `Error: ${error.message}`);
   }
 };
+export const createBillForAll = async (req, res) => {
+  try {
+    console.log("============== GENERATING MONTHLY BILLS ==============");
+
+    // ===============================
+    // 1️⃣ LAST MONTH DATE RANGE
+    // ===============================
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
+
+    const fromDate = new Date(Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0));
+    const toDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, daysInLastMonth, 23, 59, 59)
+    );
+
+    // ===============================
+    // 2️⃣ GET ALL ACTIVE LANDLORDS
+    // ===============================
+    const landlords = await Landlord.find({ isActive: true }).populate("unitIds");
+
+    if (!landlords.length) {
+      return sendError(res, "No active landlords found");
+    }
+
+    const generatedBills = [];
+
+    console.log("Total Landlords Found:", landlords.length);
+
+    // ===============================
+    // 3️⃣ LOOP THROUGH LANDLORDS
+    // ===============================
+    for (const landlord of landlords) {
+      console.log("\n----------------------------------------");
+      console.log("Processing Landlord:", landlord._id);
+
+      if (!landlord.unitIds || landlord.unitIds.length === 0) {
+        console.log("⛔ SKIPPED: No units found");
+        continue;
+      }
+
+      // ===============================
+      // EACH UNIT
+      // ===============================
+      for (const unit of landlord.unitIds) {
+        console.log("  → Processing Unit:", unit._id);
+
+        // ===============================
+        // 4️⃣ CHECK DUPLICATE BILL
+        // ===============================
+        const existingBill = await Bills.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+        });
+
+        if (existingBill) {
+          console.log("  ⛔ SKIPPED (Duplicate Bill Exists)");
+          continue;
+        }
+
+        // ===============================
+        // 5️⃣ GET ELECTRICITY CHARGES
+        // ===============================
+        const charge = await electricityCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let tariffRate = charge?.tariffGrid || 0;
+        let dgTariff = charge?.dgTariff || 0;
+        let surchargePercent = charge?.surchargePercent || 0;
+
+        // ===============================
+        // 6️⃣ GET ELECTRICITY API DATA
+        // ===============================
+        let previousReading = 0,
+          currentReading = 0,
+          mainUnits = 0,
+          dgPreviousReading = 0,
+          dgCurrentReading = 0,
+          dgUnits = 0;
+
+        if (landlord.customerId && landlord.meterSerialNumber) {
+          try {
+            const payload = {
+              CustomerID: landlord.customerId,
+              MeterSerialNumber: landlord.meterSerialNumber,
+            };
+
+            const energyRes = await axios.post(
+              "http://103.245.34.54:9000/api/Dashboard/EnergyConsumption",
+              payload
+            );
+
+            const energy = energyRes?.data?.Data;
+
+            if (energy) {
+              previousReading = energy.StartingMainReadingOfMonth || 0;
+              currentReading = energy.ClosingMainsReadingOfMonth || 0;
+              mainUnits = energy.sumEnergyMain || 0;
+              dgPreviousReading = energy.StartDGReadingOfMonth || 0;
+              dgCurrentReading = energy.ClosingDGReadingOfMonth || 0;
+              dgUnits = energy.sumEnergyDG || 0;
+            }
+          } catch (err) {
+            console.log("⚠ API ERROR — using 0 units");
+          }
+        }
+
+        // ===============================
+        // 7️⃣ ELECTRICITY CALCULATIONS
+        // ===============================
+        const mainAmount = mainUnits * tariffRate;
+        const dgAmount = dgUnits * dgTariff;
+        const surchargeAmount = ((mainAmount + dgAmount) * surchargePercent) / 100;
+
+        const electricityTotal = mainAmount + dgAmount + surchargeAmount;
+
+        // ===============================
+        // 8️⃣ MAINTENANCE CHARGES
+        // ===============================
+        const maintain = await MaintainCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let maintenanceAmount = 0;
+        let maintenanceBreakup = null;
+
+        if (maintain) {
+          if (maintain.rateType === "per_sqft") {
+            maintenanceAmount = maintain.rateValue * (unit.areaSqFt || 0);
+
+            maintenanceBreakup = {
+              rateType: "per_sqft",
+              SqftRate: maintain.rateValue,
+              SqftArea: unit.areaSqFt || 0,
+              SqftAmount: maintenanceAmount,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          } else {
+            maintenanceAmount = maintain.rateValue;
+
+            maintenanceBreakup = {
+              rateType: "fixed",
+              fixedAmount: maintain.rateValue,
+              gstPercent: maintain.gstPercent,
+              maintenanceAmount,
+            };
+          }
+        }
+
+        // ===============================
+        // 9️⃣ FINAL BILL AMOUNT
+        // ===============================
+        const totalAmount = electricityTotal + maintenanceAmount;
+
+        // ===============================
+        // 🔟 ELECTRICITY BREAKUP
+        // ===============================
+        const electricityBreakup = {
+          previousReading,
+          currentReading,
+          consumedUnits: mainUnits,
+          dgPreviousReading,
+          dgCurrentReading,
+          dgConsumedUnits: dgUnits,
+          tariffRate,
+          dgTariff,
+          surchargePercent,
+          electricityAmount: mainAmount,
+          dgAmount,
+          surchargeAmount,
+        };
+
+
+        const tenant = await Tenant.findOne({
+          unitId: unit._id,
+          landlordId: landlord._id,
+          isActive: true,
+        });
+
+        let billTo = "landlord";
+        let tenantId = null;
+
+        if (tenant && tenant.billTo === "tenant") {
+          billTo = "tenant";
+          tenantId = tenant._id;
+        }
+
+
+
+        // ===============================
+        // 1️⃣1️⃣ CREATE BILL
+        // ===============================
+        const newBill = await Bills.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          tenantId: tenantId,
+          billTo: billTo,
+          fromDate,
+          toDate,
+          electricity: electricityBreakup,
+          maintenance: maintenanceBreakup,
+          totalAmount,
+          lastUpdatedDate: new Date(),
+          status: "Unpaid",
+        });
+
+        console.log("  ✔ Bill Created:", newBill._id);
+
+        // ==========================================
+        // 1️⃣2️⃣ CREATE LEDGER ENTRY (AUTO LIKE SINGLE BILL)
+        // ==========================================
+        const lastEntry = await PaymentLedger.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+        }).sort({ entryDate: -1 });
+
+        const openingBalance = lastEntry ? lastEntry.closingBalance : 0;
+
+        const entryType = "Debit";
+        const debitAmount = totalAmount;
+        const creditAmount = 0;
+
+        const closingBalance = openingBalance - debitAmount;
+
+        await PaymentLedger.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          remark: "Bill Generated",
+          description: "Monthly Bill Added",
+          paymentMode: "Online",
+          entryType,
+          debitAmount,
+          creditAmount,
+          openingBalance,
+          closingBalance,
+          entryDate: new Date(),
+        });
+
+        // ==========================================
+        generatedBills.push(newBill);
+      }
+    }
+
+    return sendSuccess(
+      res,
+      generatedBills,
+      "Bills & Ledger entries generated successfully for ALL landlords"
+    );
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, `Error: ${error.message}`);
+  }
+};
+
+
 
 export const createBill = async (req, res) => {
   try {
@@ -1160,6 +1433,7 @@ export const getAllBills = async (req, res) => {
   try {
     const {
       landlordId,
+      tenantId,
       siteId,
       unitId,
       status,
@@ -1171,6 +1445,7 @@ export const getAllBills = async (req, res) => {
 
     const filters = {};
     if (landlordId) filters.landlordId = landlordId;
+    if (tenantId) filters.tenantId = tenantId;
     if (siteId) filters.siteId = siteId;
     if (unitId) filters.unitId = unitId;
     if (status) filters.status = status;
@@ -1181,35 +1456,23 @@ export const getAllBills = async (req, res) => {
     // -----------------------------
     // ⭐ BILL PERIOD FILTER (fromDate + toDate)
     // -----------------------------
-    if (fromDate || toDate) {
-      const start = fromDate
-        ? new Date(new Date(fromDate).setHours(0, 0, 0, 0))
-        : null;
+    if (fromDate && toDate) {
+      // Ensure full-day filter till 23:59:59
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
 
-      const end = toDate
-        ? new Date(new Date(toDate).setHours(23, 59, 59, 999))
-        : null;
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
 
-      if (start && end) {
-        // overlap condition:
-        filters.$and = [
-          { fromDate: { $lte: end } },
-          { toDate: { $gte: start } },
-        ];
-      } else if (start && !end) {
-        // match bills that end after start date
-        filters.toDate = { $gte: start };
-      } else if (!start && end) {
-        // match bills that start before end date
-        filters.fromDate = { $lte: end };
-      }
+      filters.fromDate = { $gte: start };
+      filters.toDate = { $lte: end };
     }
-
     // --------------------------------
     // FETCH BILLS
     // --------------------------------
     const bills = await Bills.find(filters)
       .populate("landlordId", "name")
+      .populate("tenantId", "name")
       .populate("siteId", "siteName")
       .populate("unitId", "unitNumber")
       .sort({ fromDate: -1 }) // 👈 sorted by billing period
@@ -1230,97 +1493,7 @@ export const getAllBills = async (req, res) => {
   }
 };
 
-export const getBillingSummary1 = async (req, res) => {
-  try {
-    const { landlordId, siteId, fromDate, toDate } = req.query;
 
-    const filters = {};
-    if (landlordId) filters.landlordId = landlordId;
-    if (siteId) filters.siteId = siteId;
-
-    // 1️⃣ Date filters
-    if (fromDate && toDate) {
-      filters.generatedOn = {
-        $gte: new Date(fromDate),
-        $lte: new Date(toDate)
-      };
-    }
-
-    // 2️⃣ Fetch bills according to filters
-    const bills = await Bills.find(filters).lean();
-
-    let maintenanceTotal = 0;
-    let maintenanceCollected = 0;
-
-    let electricityTotal = 0;
-    let electricityCollected = 0;
-
-    bills.forEach(bill => {
-      // ---- Maintenance ----
-      if (bill.maintenance?.maintenanceAmount) {
-        maintenanceTotal += bill.maintenance.maintenanceAmount;
-
-        if (bill.status === "Paid") {
-          maintenanceCollected += bill.maintenance.maintenanceAmount;
-        }
-      }
-
-      // ---- Electricity ----
-      if (bill.electricity?.electricityAmount) {
-        const totalElec =
-          bill.electricity.electricityAmount +
-          (bill.electricity.dgAmount || 0) +
-          (bill.electricity.surchargeAmount || 0);
-
-        electricityTotal += totalElec;
-
-        if (bill.status === "Paid") {
-          electricityCollected += totalElec;
-        }
-      }
-    });
-
-    const summary = {
-      maintenance: {
-        total: maintenanceTotal,
-        collected: maintenanceCollected,
-        pending: maintenanceTotal - maintenanceCollected,
-        percent: maintenanceTotal === 0 ? 0 : (maintenanceCollected / maintenanceTotal) * 100,
-      },
-      electricity: {
-        total: electricityTotal,
-        collected: electricityCollected,
-        pending: electricityTotal - electricityCollected,
-        percent: electricityTotal === 0 ? 0 : (electricityCollected / electricityTotal) * 100,
-      },
-      total: {
-        total: maintenanceTotal + electricityTotal,
-        collected: maintenanceCollected + electricityCollected,
-        pending: (maintenanceTotal - maintenanceCollected) + (electricityTotal - electricityCollected),
-        percent:
-          (maintenanceTotal + electricityTotal) === 0
-            ? 0
-            : ((maintenanceCollected + electricityCollected) /
-              (maintenanceTotal + electricityTotal)) *
-            100
-      }
-    };
-
-    res.status(200).json({
-      success: true,
-      message: "Billing summary fetched successfully",
-      data: summary
-    });
-
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: error.message
-    });
-  }
-};
 
 export const getBillingSummary = async (req, res) => {
   try {
@@ -1440,10 +1613,6 @@ export const getBillingSummary = async (req, res) => {
     });
   }
 };
-
-
-
-
 
 export const getBillById = async (req, res) => {
   try {
