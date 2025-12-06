@@ -1230,7 +1230,7 @@ export const getAllBills = async (req, res) => {
   }
 };
 
-export const getBillingSummary = async (req, res) => {
+export const getBillingSummary1 = async (req, res) => {
   try {
     const { landlordId, siteId, fromDate, toDate } = req.query;
 
@@ -1321,6 +1321,126 @@ export const getBillingSummary = async (req, res) => {
     });
   }
 };
+
+export const getBillingSummary = async (req, res) => {
+  try {
+    const { landlordId, siteId, fromDate, toDate } = req.query;
+
+    const filters = {};
+    if (landlordId) filters.landlordId = landlordId;
+    if (siteId) filters.siteId = siteId;
+
+    // 1️⃣ Date Filters
+    if (fromDate && toDate) {
+      filters.$or = [
+        { fromDate: { $gte: new Date(fromDate), $lte: new Date(toDate) } },
+        { toDate: { $gte: new Date(fromDate), $lte: new Date(toDate) } },
+        {
+          $and: [
+            { fromDate: { $lte: new Date(fromDate) } },
+            { toDate: { $gte: new Date(toDate) } }
+          ]
+        }
+      ];
+    }
+
+    // 2️⃣ Fetch Bills
+    const bills = await Bills.find(filters).lean();
+
+    let maintenanceTotal = 0;
+    let maintenanceCollected = 0;
+
+    let electricityTotal = 0;
+    let electricityCollected = 0;
+
+    bills.forEach(bill => {
+
+      // -------------------------------------------------
+      // -------------- Maintenance Calculation ----------
+      // -------------------------------------------------
+      if (bill.maintenance?.maintenanceAmount) {
+        const mAmount = bill.maintenance.maintenanceAmount || 0;
+
+        maintenanceTotal += mAmount;
+
+        if (bill.status === "Paid") {
+          maintenanceCollected += mAmount;
+        }
+      }
+
+
+      // -------------------------------------------------
+      // ---------------- Electricity Calculation --------
+      // -------------------------------------------------
+      if (bill.electricity) {
+
+        const elecAmount = bill.electricity.electricityAmount || 0;
+        const dgAmount = bill.electricity.dgAmount || 0;
+        const surchargeAmount = bill.electricity.surchargeAmount || 0;
+
+        // ✔ FINAL ELECTRICITY TOTAL FOR THIS BILL
+        const totalElec = elecAmount + dgAmount + surchargeAmount;
+
+        electricityTotal += totalElec;
+
+        if (bill.status === "Paid") {
+          electricityCollected += totalElec;
+        }
+      }
+
+    });
+
+    // -----------------------------------------
+    // ----------- FINAL SUMMARY ---------------
+    // -----------------------------------------
+    const summary = {
+      maintenance: {
+        total: maintenanceTotal,
+        collected: maintenanceCollected,
+        pending: maintenanceTotal - maintenanceCollected,
+        percent: maintenanceTotal === 0 ? 0 : (maintenanceCollected / maintenanceTotal) * 100,
+      },
+
+      electricity: {
+        total: electricityTotal,
+        collected: electricityCollected,
+        pending: electricityTotal - electricityCollected,
+        percent: electricityTotal === 0 ? 0 : (electricityCollected / electricityTotal) * 100,
+      },
+
+      total: {
+        total: maintenanceTotal + electricityTotal,
+        collected: maintenanceCollected + electricityCollected,
+        pending:
+          (maintenanceTotal - maintenanceCollected) +
+          (electricityTotal - electricityCollected),
+
+        percent:
+          (maintenanceTotal + electricityTotal) === 0
+            ? 0
+            : ((maintenanceCollected + electricityCollected) /
+              (maintenanceTotal + electricityTotal)) *
+            100
+      }
+    };
+
+    // Response
+    res.status(200).json({
+      success: true,
+      message: "Billing summary fetched successfully",
+      data: summary
+    });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
+
 
 
 
