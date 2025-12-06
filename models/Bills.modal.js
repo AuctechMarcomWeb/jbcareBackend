@@ -31,7 +31,7 @@ const BillsSchema = new mongoose.Schema({
     landlordId: { type: mongoose.Schema.Types.ObjectId, ref: "Landlord" },
     siteId: { type: mongoose.Schema.Types.ObjectId, ref: "Site" },
     unitId: { type: mongoose.Schema.Types.ObjectId, ref: "Unit" },
-
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant" },
     fromDate: Date,
     toDate: Date,
 
@@ -41,10 +41,12 @@ const BillsSchema = new mongoose.Schema({
 
     totalAmount: { type: Number, default: 0 },
     lastUpdatedDate: { type: String },
+    billTo: { type: String, default: "landlord" },
 
     status: { type: String, enum: ["Unpaid", "Paid"], default: "Unpaid" },
     generatedOn: { type: Date, default: Date.now },
 
+    paymentMode: String,
     paymentId: String,
     paidAt: Date,
     paidBy: String,

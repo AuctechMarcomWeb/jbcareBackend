@@ -108,6 +108,7 @@ export const verifyRazorpayPayment = async (req, res) => {
             bill.status = "Paid";
             bill.paidAt = new Date();
             bill.paidBy = "Online";
+            bill.paymentMode = "Online";
             bill.paymentId = razorpayPaymentId;
             bill.payerId = payment.landlordId;
             await bill.save();
@@ -301,6 +302,7 @@ export const payBillFromLanlordWallet = async (req, res) => {
         bill.status = "Paid";
         bill.paidAt = new Date();
         bill.paidBy = "Wallet";
+        bill.paymentMode = "Wallet";
         bill.paymentId = "WALLET-" + Date.now();
         bill.payerId = landlordId;
         await bill.save();
@@ -373,7 +375,7 @@ export const payBillFromLanlordWallet = async (req, res) => {
 
 export const payBillbyAdmin = async (req, res) => {
     try {
-        const { billId, landlordId, siteId, unitId, amount } = req.body;
+        const { billId, landlordId, siteId, unitId, amount, paymentMode } = req.body;
 
         if (!billId || !landlordId || !siteId || !unitId || !amount) {
             return res.status(400).json({
@@ -448,6 +450,7 @@ export const payBillbyAdmin = async (req, res) => {
         bill.status = "Paid";
         bill.paidAt = new Date();
         bill.paidBy = "Admin";
+        bill.paymentMode = paymentMode;
         bill.paymentId = "Admin-" + Date.now();
         bill.payerId = landlordId;
         await bill.save();
@@ -460,7 +463,7 @@ export const payBillbyAdmin = async (req, res) => {
             unitId,
             totalAmount: amount,
             status: "Success",
-            paymentMode: "Admin",
+            paymentMode: paymentMode,
             remark: `Bill #${billId} paid by Admin`,
             description: " Paid By Admin ",
             paidAt: new Date(),
@@ -490,7 +493,7 @@ export const payBillbyAdmin = async (req, res) => {
             unitId,
             remark: `Bill #${billId} Admin Payment`,
             description: `Admin payment for Bill No ${bill.billNo || billId}`,
-            paymentMode: "Admin",
+            paymentMode: paymentMode,
             entryType,      // Debit
             debitAmount,    // amount
             creditAmount,
