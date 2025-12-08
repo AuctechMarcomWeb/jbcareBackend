@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  getAllMeterLogs,
   getLatestMeterStatus,
   getMeterLogs,
   toggleMeter,
@@ -7,6 +8,7 @@ import {
 
 const router = express.Router();
 
+router.get("/", getAllMeterLogs);
 router.post("/toggle", toggleMeter);
 router.get("/logs/:landlordId", getMeterLogs);
 router.get("/status/:landlordId", getLatestMeterStatus);

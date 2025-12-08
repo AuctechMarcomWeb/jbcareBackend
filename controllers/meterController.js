@@ -113,6 +113,8 @@ export const getMeterLogs = async (req, res) => {
     });
   }
 };
+
+
 export const getLatestMeterStatus = async (req, res) => {
   try {
     const { landlordId } = req.params;
@@ -156,6 +158,61 @@ export const getLatestMeterStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch meter status",
+      error: error.message,
+    });
+  }
+};
+
+
+export const getAllMeterLogs = async (req, res) => {
+  try {
+    const {
+      landlordId,
+      customerId,
+      meterId,
+      meterSerialNumber,
+      fromDate,
+      toDate,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    let filters = {};
+
+    if (landlordId) filters.landlordId = landlordId;
+    if (customerId) filters.customerId = customerId;
+    if (meterId) filters.meterId = meterId;
+    if (meterSerialNumber) filters.meterSerialNumber = meterSerialNumber;
+
+    // Date Range Filter
+    if (fromDate || toDate) {
+      filters.createdAt = {};
+      if (fromDate) filters.createdAt.$gte = new Date(fromDate);
+      if (toDate) filters.createdAt.$lte = new Date(toDate);
+    }
+
+    const skip = (page - 1) * limit;
+
+    const logs = await MeterLogs.find(filters)
+      .sort({ createdAt: -1 })        // latest first
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await MeterLogs.countDocuments(filters);
+
+    return res.status(200).json({
+      success: true,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      data: logs,
+    });
+
+  } catch (error) {
+    console.error("ERROR fetching meter logs:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch meter logs",
       error: error.message,
     });
   }

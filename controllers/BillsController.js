@@ -1,4 +1,5 @@
 import Bills from "../models/Bills.modal.js";
+import MeterLogs from "../models/MeterLogs.modal.js";
 
 import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
@@ -1481,8 +1482,37 @@ export const getAllBills = async (req, res) => {
 
     const total = await Bills.countDocuments(filters);
 
+    // -------------------------------------------
+    // ⭐ GET LATEST METER STATUS FOR EACH landlordId
+    // -------------------------------------------
+    const landlordIds = bills.map((b) => b.landlordId?._id);
+
+    const meterLogs = await MeterLogs.find({
+      landlordId: { $in: landlordIds },
+    });
+
+    // Map: landlordId → meterStatus
+    const meterStatusMap = {};
+    meterLogs.forEach((log) => {
+      const lastAction = log.logs?.length
+        ? log.logs[log.logs.length - 1].action
+        : log.currentStatus || "UNKNOWN";
+
+      meterStatusMap[log.landlordId] = lastAction;
+    });
+
+    // Attach meterStatus to each bill
+    const responseBills = bills.map((b) => ({
+      ...b.toObject(),
+      meterStatus:
+        meterStatusMap[b.landlordId?._id] || "UNKNOWN",
+    }));
+
+
+
+
     return sendSuccess(res, "Bills fetched successfully", {
-      data: bills,
+      data: responseBills,
       total,
       currentPage: pageNum,
       totalPages: Math.ceil(total / limitNum),

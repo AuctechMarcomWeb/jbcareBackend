@@ -201,7 +201,6 @@ export const getAllUnits = async (req, res) => {
   }
 };
 
-// ✅ Update Unit
 export const updateUnit = async (req, res) => {
   try {
     const {
@@ -215,28 +214,20 @@ export const updateUnit = async (req, res) => {
       status,
     } = req.body;
 
-    // 🔹 Optional: Validate unitNumber
-    if (
-      unitNumber &&
-      (typeof unitNumber !== "string" || unitNumber.trim() === "")
-    ) {
-      return sendError(res, "unitNumber must be a non-empty string", 400);
-    }
+    const updateData = {};
 
-    const unit = await Unit.findByIdAndUpdate(
-      req.params.id,
-      {
-        unitNumber: unitNumber?.trim(),
-        block,
-        floor,
-        areaSqFt,
-        siteId,
-        projectId,
-        unitTypeId,
-        status,
-      },
-      { new: true }
-    );
+    if (unitNumber?.trim()) updateData.unitNumber = unitNumber.trim();
+    if (block) updateData.block = block;
+    if (floor) updateData.floor = floor;
+    if (areaSqFt) updateData.areaSqFt = areaSqFt;
+    if (siteId) updateData.siteId = siteId;
+    if (projectId) updateData.projectId = projectId;
+    if (unitTypeId) updateData.unitTypeId = unitTypeId; // only update if provided
+    if (typeof status === "boolean") updateData.status = status;
+
+    const unit = await Unit.findByIdAndUpdate(req.params.id, updateData, {
+      new: true,
+    });
 
     if (!unit) return sendError(res, "Unit not found", 404);
 
@@ -245,6 +236,7 @@ export const updateUnit = async (req, res) => {
     return sendError(res, "Failed to update Unit", 500, err.message);
   }
 };
+
 
 // ✅ Delete Unit
 export const deleteUnit = async (req, res) => {
