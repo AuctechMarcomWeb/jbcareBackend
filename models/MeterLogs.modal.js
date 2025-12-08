@@ -43,7 +43,7 @@ const meterLogSchema = new mongoose.Schema(
       {
         action: { type: String, enum: ["ON", "OFF"], required: true },
         timestamp: { type: Date, default: Date.now },
-        response: { type: Object }, 
+        response: { type: Object },
         requestedBy: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",

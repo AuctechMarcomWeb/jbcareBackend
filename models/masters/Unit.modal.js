@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 
 const unitSchema = new mongoose.Schema(
   {
-    unitNumber: { type: String, required: true},
+    unitNumber: { type: String, required: true },
     block: { type: String },
     floor: { type: String },
     areaSqFt: { type: Number },
@@ -26,7 +26,7 @@ const unitSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Landlord",
     },
-     tenantId: {
+    tenantId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Tenant",
     },
