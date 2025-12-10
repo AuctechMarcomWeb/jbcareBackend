@@ -11,6 +11,62 @@ const createToken = (userId) => {
   });
 };
 
+
+
+
+export const createUser = async (req, res) => {
+  try {
+    const { name, email, phone, password } = req.body;
+
+    if (!name || !email || !phone || !password) {
+      return res
+        .status(400)
+        .json({ message: "Name, email , phone and password are required" });
+    }
+
+    // Check existing user
+    const exists = await User.findOne({ email });
+    if (exists) {
+      return res
+        .status(400)
+        .json({ message: "User already exists with this email" });
+    }
+
+    // AUTO-GENERATED PASSWORD
+    const autoPassword = "Admin@123";
+
+    // Create new user — schema will hash automatically
+    const user = await User.create({
+      name,
+      email,
+      phone,
+      password,
+    });
+
+    const token = createToken(user._id);
+
+    const responseData = {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+      },
+      token,
+    };
+
+    return sendSuccess(
+      res,
+      "User created successfully with auto-generated password",
+      responseData,
+      201
+    );
+  } catch (err) {
+    return sendError(res, "Registration failed", 500, err.message);
+  }
+};
+
+
 // POST /api/auth/register
 export const register = async (req, res) => {
   try {
@@ -58,7 +114,7 @@ export const register = async (req, res) => {
 };
 
 // POST /api/auth/login
-export const login = async (req, res) => {
+export const login1 = async (req, res) => {
   console.log("Login attempt made");
 
   try {
@@ -111,6 +167,60 @@ export const login = async (req, res) => {
     return sendError(res, "Login failed", 500, err.message);
   }
 };
+
+export const login = async (req, res) => {
+  console.log("Login attempt made");
+
+  try {
+    const { email, phone, password } = req.body;
+
+    console.log("User login details", email, phone, password);
+
+    if ((!email && !phone) || !password) {
+      return res
+        .status(400)
+        .json({ message: "Provide email or phone and password" });
+    }
+
+    // Find user
+    let user;
+    if (email) {
+      user = await User.findOne({ email });
+    } else if (phone) {
+      user = await User.findOne({ phone });
+    }
+
+    console.log("User found:", user);
+
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // ❌ No bcrypt compare
+    // ✅ Direct plain-text password check
+    if (password !== user.password) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const token = createToken(user._id);
+
+    const responseData = {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+      token,
+    };
+
+    return sendSuccess(res, "Login successful", responseData, 200);
+  } catch (err) {
+    return sendError(res, "Login failed", 500, err.message);
+  }
+};
+
 
 export const forgotPassword = async (req, res) => {
   try {
