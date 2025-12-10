@@ -1496,7 +1496,7 @@ export const getAllBills = async (req, res) => {
     meterLogs.forEach((log) => {
       const lastAction = log.logs?.length
         ? log.logs[log.logs.length - 1].action
-        : log.currentStatus || "UNKNOWN";
+        : log.currentStatus || "ON";
 
       meterStatusMap[log.landlordId] = lastAction;
     });
@@ -1505,7 +1505,7 @@ export const getAllBills = async (req, res) => {
     const responseBills = bills.map((b) => ({
       ...b.toObject(),
       meterStatus:
-        meterStatusMap[b.landlordId?._id] || "UNKNOWN",
+        meterStatusMap[b.landlordId?._id] || "ON",
     }));
 
 
