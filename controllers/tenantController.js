@@ -99,11 +99,17 @@ export const addTenant = async (req, res) => {
       isActive: tenant.isActive,
     });
     await unit.save();
+
+    const namePart = tenant?.name
+      ? tenant.name.substring(0, 3).toLowerCase()
+      : "usr";
+
+    const generatedPassword = `${namePart}@123`;
     const createdUser = await createUser({
       name: tenant?.name,
       email: tenant?.email,
       phone: tenant?.phone,
-      password: `${tenant?.name}123`, // or generate random
+      password: generatedPassword, // or generate random
       role: "tenant",
       referenceId: tenant?._id, // optional to link
       siteId, // ✅ added

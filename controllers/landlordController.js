@@ -155,11 +155,17 @@ export const addLandlord = async (req, res) => {
       await unit.save();
     }
 
+    const namePart = landlord?.name
+      ? landlord.name.substring(0, 3).toLowerCase()
+      : "usr";
+
+    const generatedPassword = `${namePart}@123`;
+
     const createdUser = await createUser({
       name: landlord?.name,
       email: landlord?.email,
       phone: landlord?.phone,
-      password: `Abc@123`,
+      password: generatedPassword,
       role: "landlord",
       referenceId: landlord?._id,
       siteId,
