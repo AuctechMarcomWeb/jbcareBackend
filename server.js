@@ -35,6 +35,7 @@ import billsRoutes from "./routes/Bills/BillsRoutes.js";
 import paymentLedgerRoutes from "./routes/Bills/paymentLedgerRoutes.js";
 import billPaymentRoutes from "./routes/Bills/BillPaymentsRoutes.js";
 import siteTypeRoutes from "./routes/masters/siteTypesRoutes.js";
+import fixElectricityChargesRoutes from "./routes/masters/FixElectricityChargesRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -81,6 +82,7 @@ app.use("/api/bills", billsRoutes);
 app.use("/api/paymentLedger", paymentLedgerRoutes);
 app.use("/api/billPayment", billPaymentRoutes);
 app.use("/api/siteType", siteTypeRoutes);
+app.use("/api/fixElectricityCharges", fixElectricityChargesRoutes);
 
 app.use("/api", uploadRoutes);
 

@@ -19,9 +19,9 @@ export const createSiteType = async (req, res) => {
         if (existing)
             return sendError(res, "SiteType with this title already exists", 400);
 
-        const unitType = await SiteType.create({ title: title.trim(), status });
+        const siteType = await SiteType.create({ title: title.trim(), status });
 
-        return sendSuccess(res, "SiteType created successfully", unitType, 201);
+        return sendSuccess(res, "SiteType created successfully", siteType, 201);
     } catch (err) {
         console.error("Create SiteType Error:", err);
         return sendError(res, "Failed to create SiteType", 500, err.message);
@@ -57,13 +57,13 @@ export const getAllSiteTypes = async (req, res) => {
             query = query.skip((page - 1) * parseInt(limit)).limit(parseInt(limit));
         }
 
-        const unitTypes = await query;
+        const siteTypes = await query;
 
         return sendSuccess(
             res,
             "SiteTypes fetched successfully",
             {
-                unitTypes,
+                siteTypes,
                 totalSiteTypes: total,
                 totalPages: Math.ceil(total / limit),
                 currentPage: Number(page),
@@ -99,15 +99,15 @@ export const updateSiteType = async (req, res) => {
                 );
         }
 
-        const unitType = await SiteType.findByIdAndUpdate(
+        const siteType = await SiteType.findByIdAndUpdate(
             req.params.id,
             { title: title?.trim(), status },
             { new: true }
         );
 
-        if (!unitType) return sendError(res, "SiteType not found", 404);
+        if (!siteType) return sendError(res, "SiteType not found", 404);
 
-        return sendSuccess(res, "SiteType updated successfully", unitType, 200);
+        return sendSuccess(res, "SiteType updated successfully", siteType, 200);
     } catch (err) {
         return sendError(res, "Failed to update SiteType", 500, err.message);
     }
@@ -116,8 +116,8 @@ export const updateSiteType = async (req, res) => {
 // ✅ Delete SiteType
 export const deleteSiteType = async (req, res) => {
     try {
-        const unitType = await SiteType.findByIdAndDelete(req.params.id);
-        if (!unitType) return sendError(res, "SiteType not found", 404);
+        const siteType = await SiteType.findByIdAndDelete(req.params.id);
+        if (!siteType) return sendError(res, "SiteType not found", 404);
 
         return sendSuccess(res, "SiteType deleted successfully", null, 200);
     } catch (err) {
