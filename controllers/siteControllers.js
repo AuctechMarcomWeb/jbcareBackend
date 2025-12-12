@@ -3,110 +3,95 @@ import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
 export const createSite = async (req, res) => {
   try {
-    const { siteName, siteAddress, city, state, country } = req.body;
+    const { siteName, siteAddress, siteType } = req.body;
 
-    if (!siteName || typeof siteName !== "string" || siteName.trim() === "") {
-      return sendError(
-        res,
-        "siteName is required and must be a non-empty string",
-        400
-      );
+    // Validation
+    if (!siteName || siteName.trim() === "") {
+      return sendError(res, "siteName is required", 400);
+    }
+    if (!siteAddress || siteAddress.trim() === "") {
+      return sendError(res, "siteAddress is required", 400);
+    }
+    if (!siteType) {
+      return sendError(res, "siteType is required", 400);
     }
 
-    if (
-      !siteAddress ||
-      typeof siteAddress !== "string" ||
-      siteAddress.trim() === ""
-    ) {
-      return sendError(
-        res,
-        "siteAddress is required and must be a non-empty string",
-        400
-      );
-    }
-
+    // Check duplicate
     const existingSite = await Site.findOne({
-      siteName: siteName.trim(),
+      siteName: { $regex: `^${siteName.trim()}$`, $options: "i" },
     });
 
     if (existingSite) {
-      return sendError(res, "Site with this name  already exists", 400);
+      return sendError(res, "Site with this name already exists", 400);
     }
 
-    const site = await Site.create(req.body);
+    // Create
+    const site = await Site.create({
+      siteName: siteName.trim(),
+      siteAddress: siteAddress.trim(),
+      siteType,
+    });
 
     return sendSuccess(res, "Site created successfully", site, 201);
-
   } catch (err) {
     console.error("Create Site Error:", err);
     return sendError(res, "Failed to create site", 500, err.message);
   }
 };
 
-// ✅ Get All Sites (with search, pagination, date range, sort order, and status filter)
+// ---------------------------------------------------------
+// GET ALL SITES (Search + Pagination + Date Filter + Status Filter)
+// ---------------------------------------------------------
 export const getAllSites = async (req, res) => {
   try {
     const {
       search,
       fromDate,
       toDate,
-      order = "desc", // default: latest first
+      order = "desc",
       isPagination = "true",
       page = 1,
       limit = 10,
-      status, // ✅ NEW: Accept status filter (true/false)
+      status,
     } = req.query;
 
     const match = {};
 
-    // --- ✅ Status filter (true/false as string)
-    if (status === "true") {
-      match.status = true;
-    } else if (status === "false") {
-      match.status = false;
-    }
+    // Status filter
+    if (status === "true") match.status = true;
+    if (status === "false") match.status = false;
 
-    // --- Normalize pagination
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.max(1, parseInt(limit) || 10);
-
-    // --- Search filter
-    const searchTerm =
-      typeof search === "string" &&
-        search.trim() !== "" &&
-        search.trim().toLowerCase() !== "null" &&
-        search.trim().toLowerCase() !== "undefined"
-        ? search.trim()
-        : null;
-
-    if (searchTerm) {
+    // Search match
+    if (search && search.trim() !== "") {
+      const keyword = search.trim();
       match.$or = [
-        { siteName: { $regex: searchTerm, $options: "i" } },
-        { siteAddress: { $regex: searchTerm, $options: "i" } },
+        { siteName: { $regex: keyword, $options: "i" } },
+        { siteAddress: { $regex: keyword, $options: "i" } },
       ];
     }
 
-    // --- Date range filter
+    // Date filter
     if (fromDate || toDate) {
       match.createdAt = {};
       if (fromDate) match.createdAt.$gte = new Date(fromDate);
+
       if (toDate) {
-        const endOfDay = new Date(toDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        match.createdAt.$lte = endOfDay;
+        const endDay = new Date(toDate);
+        endDay.setHours(23, 59, 59, 999);
+        match.createdAt.$lte = endDay;
       }
     }
 
-    // --- Sort order
     const sortOrder = order === "asc" ? 1 : -1;
 
-    // --- Build query
-    let query = Site.find(match).sort({ createdAt: sortOrder });
+    let query = Site.find(match).populate("siteType").sort({ createdAt: sortOrder });
 
     const total = await Site.countDocuments(match);
 
-    // --- Apply pagination if enabled
     if (isPagination === "true") {
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 10;
+
       query = query.skip((pageNum - 1) * limitNum).limit(limitNum);
     }
 
@@ -120,11 +105,9 @@ export const getAllSites = async (req, res) => {
         totalSites: total,
         totalPages:
           isPagination === "true"
-            ? Math.ceil(total / limitNum)
-            : total > 0
-              ? 1
-              : 0,
-        currentPage: pageNum,
+            ? Math.ceil(total / (parseInt(limit) || 10))
+            : 1,
+        currentPage: parseInt(page) || 1,
       },
       200
     );
@@ -134,26 +117,60 @@ export const getAllSites = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------
+// UPDATE SITE
+// ---------------------------------------------------------
 export const updateSite = async (req, res) => {
   try {
-    const site = await Site.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+    const { siteName, siteAddress, siteType } = req.body;
+
+    // Duplicate check for updated name
+    if (siteName) {
+      const existing = await Site.findOne({
+        _id: { $ne: req.params.id },
+        siteName: { $regex: `^${siteName.trim()}$`, $options: "i" },
+      });
+      if (existing) {
+        return sendError(
+          res,
+          "Another site with this name already exists",
+          400
+        );
+      }
+    }
+
+    const site = await Site.findByIdAndUpdate(
+      req.params.id,
+      {
+        ...(siteName && { siteName: siteName.trim() }),
+        ...(siteAddress && { siteAddress: siteAddress.trim() }),
+        ...(siteType && { siteType }),
+        ...(req.body.status !== undefined && { status: req.body.status }),
+      },
+      { new: true }
+    );
+
     if (!site) return sendError(res, "Site not found", 404);
 
     return sendSuccess(res, "Site updated successfully", site, 200);
   } catch (err) {
-    return sendError(res, "Failed to update site", 400, err.message);
+    console.error("Update Site Error:", err);
+    return sendError(res, "Failed to update site", 500, err.message);
   }
 };
 
+// ---------------------------------------------------------
+// DELETE SITE
+// ---------------------------------------------------------
 export const deleteSite = async (req, res) => {
   try {
     const site = await Site.findByIdAndDelete(req.params.id);
+
     if (!site) return sendError(res, "Site not found", 404);
 
     return sendSuccess(res, "Site deleted successfully", null, 200);
   } catch (err) {
-    return sendError(res, "Failed to delete site", 400, err.message);
+    console.error("Delete Site Error:", err);
+    return sendError(res, "Failed to delete site", 500, err.message);
   }
 };
