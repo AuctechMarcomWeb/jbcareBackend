@@ -24,9 +24,6 @@ export const addWalletPayment = async (req, res) => {
         if (!landlordId || !siteId || !unitId || !totalAmount) {
             return sendError(res, "Missing required fields");
         }
-
-
-
         // Step 1️⃣: Create pending bill payment
         const billPayment = await BillsPayments.create({
             landlordId,
