@@ -65,6 +65,7 @@ const landlordSchema = new mongoose.Schema(
     emergencyContactNumber: { type: String },
     notes: { type: String },
     walletBalance: { type: Number, default: 0 },
+    creditLimit: { type: Number, default: 0 },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User", // whoever registered this landlord

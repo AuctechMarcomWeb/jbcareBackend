@@ -12,6 +12,122 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
+
+
+
+
+
+export const addWalletPayment = async (req, res) => {
+    try {
+        const { landlordId, siteId, unitId, totalAmount } = req.body;
+
+        if (!landlordId || !siteId || !unitId || !totalAmount) {
+            return sendError(res, "Missing required fields");
+        }
+
+
+
+        // Step 1️⃣: Create pending bill payment
+        const billPayment = await BillsPayments.create({
+            landlordId,
+            siteId,
+            unitId,
+            totalAmount,
+            payerId: landlordId,
+            paidBy: "Landlord",
+            status: "Pending",
+        });
+
+        const options = {
+            amount: totalAmount * 100, // amount in paise
+            currency: "INR",
+            receipt: "receipt_" + billPayment._id,
+        };
+
+        const order = await razorpay.orders.create(options);
+
+        billPayment.razorpayOrderId = order.id;
+        await billPayment.save();
+
+        return sendSuccess(res, { billPayment, order }, " payment created & Razorpay order generated");
+    } catch (error) {
+        console.error("Error in payByLandlordOnline:", error);
+        return sendError(res, error.message);
+    }
+};
+
+export const verifyRazorpayPaymentForWallet = async (req, res) => {
+    try {
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature, paymentId } = req.body;
+
+        if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature || !paymentId) {
+            return sendError(res, "Missing required fields");
+        }
+
+        // Step 1️⃣: Verify signature
+        const body = razorpayOrderId + "|" + razorpayPaymentId;
+        const expectedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(body)
+            .digest("hex");
+
+        if (expectedSignature !== razorpaySignature) {
+            await BillsPayments.findByIdAndUpdate(paymentId, {
+                status: "Failed",
+                razorpayOrderId,
+                razorpayPaymentId,
+                razorpaySignature,
+                lastUpdatedDate: new Date(),
+            });
+            return sendError(res, "Payment verification failed");
+        }
+
+        // Step 2️⃣: Update payment status → Success
+        const payment = await BillsPayments.findByIdAndUpdate(
+            paymentId,
+            {
+                status: "Success",
+                razorpayOrderId,
+                razorpayPaymentId,
+                razorpaySignature,
+                paidAt: new Date(),
+                lastUpdatedDate: new Date(),
+            },
+            { new: true }
+        );
+
+        if (!payment) return sendError(res, "Payment record not found");
+
+        // 👉 Get landlord ID from payment record
+        const landlordId = payment.landlordId;
+        const amount = payment.totalAmount;
+
+        // Step 3️⃣: Add money to landlord wallet
+        const landlord = await Landlord.findById(landlordId);
+        if (!landlord) return sendError(res, "Landlord not found");
+
+        landlord.walletBalance = Number(landlord.walletBalance) + Number(amount);
+        await landlord.save();
+
+
+
+        return sendSuccess(
+            res,
+            {
+                payment,
+                newWalletBalance: landlord.walletBalance,
+            },
+            "Payment verified and wallet balance updated successfully"
+        );
+
+    } catch (error) {
+        console.error("Error in verifyRazorpayPayment:", error);
+        return sendError(res, error.message);
+    }
+};
+
+
+
 export const payByLandlordOnline = async (req, res) => {
     try {
         const { landlordId, billId, siteId, unitId, totalAmount, payerId } = req.body;
