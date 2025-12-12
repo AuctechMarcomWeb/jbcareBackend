@@ -761,6 +761,52 @@ export const createBillForAll = async (req, res) => {
   }
 };
 
+export const updateBillStatus = async (req, res) => {
+  try {
+    const { billId } = req.params;
+    const { newStatus, remark } = req.body;
+
+    if (!newStatus) {
+      return sendError(res, "newStatus is required");
+    }
+
+    // Valid status list
+    const validStatus = ["Unpaid", "Under Process", "Paid"];
+    if (!validStatus.includes(newStatus)) {
+      return sendError(res, "Invalid status value");
+    }
+
+    // Find bill
+    const bill = await Bills.findById(billId);
+    if (!bill) return sendError(res, "Bill not found");
+
+    // Prevent duplicate status update
+    if (bill.status === newStatus) {
+      return sendError(res, `Bill is already in '${newStatus}' status`);
+    }
+
+    const oldStatus = bill.status;
+
+    // Update main status
+    bill.status = newStatus;
+    bill.lastUpdatedDate = new Date().toISOString();
+
+    // Push to statusLog
+    bill.statusLog.push({
+      oldStatus,
+      newStatus,
+      remark: remark || "",
+      changedAt: new Date()
+    });
+
+    await bill.save();
+
+    return sendSuccess(res, bill, "Bill status updated successfully");
+  } catch (error) {
+    console.error("Update Status Error:", error);
+    return sendError(res, error.message);
+  }
+};
 
 
 export const createBill = async (req, res) => {
