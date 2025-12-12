@@ -17,6 +17,13 @@ const electricityBreakupSchema = new mongoose.Schema({
     surchargeAmount: { type: Number, default: 0 },
 });
 
+const statusLogSchema = new mongoose.Schema({
+    oldStatus: { type: String },
+    newStatus: { type: String },
+    remark: { type: String },
+    changedAt: { type: Date, default: Date.now }
+});
+
 const maintenanceBreakupSchema = new mongoose.Schema({
     rateType: { type: String, },
     fixedAmount: { type: Number, default: 0 },
@@ -43,7 +50,8 @@ const BillsSchema = new mongoose.Schema({
     lastUpdatedDate: { type: String },
     billTo: { type: String, default: "landlord" },
 
-    status: { type: String, enum: ["Unpaid", "Paid"], default: "Unpaid" },
+    status: { type: String, enum: ["Unpaid", "Under Process", "Paid"], default: "Unpaid" },
+    statusLog: [statusLogSchema],
     generatedOn: { type: Date, default: Date.now },
 
     paymentMode: String,
