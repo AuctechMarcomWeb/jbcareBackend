@@ -1,5 +1,6 @@
 import express from "express";
 import {
+    addWalletPayment,
     createBillsPayment,
     deleteBillsPayment,
     getAllBillsPayments,
@@ -8,7 +9,8 @@ import {
     payBillFromLanlordWallet,
     payByLandlordOnline,
     updateBillsPayment,
-    verifyRazorpayPayment
+    verifyRazorpayPayment,
+    verifyRazorpayPaymentForWallet
 } from "../../controllers/BillPaymentsController.js";
 
 
@@ -20,6 +22,8 @@ router.post("/payByLanlord", payBillFromLanlordWallet);
 router.post("/payByAdmin", payBillbyAdmin);
 router.post("/payByLanlordOnline", payByLandlordOnline);
 router.post("/verifyLanlordPayment", verifyRazorpayPayment);
+router.post("/addWalletPayment", addWalletPayment);
+router.post("/verifyRazorpayPaymentForWallet", verifyRazorpayPaymentForWallet);
 
 router.get("/all", getAllBillsPayments);
 
