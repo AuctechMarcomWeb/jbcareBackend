@@ -27,6 +27,7 @@ const BillsPaymentsSchema = new mongoose.Schema(
         totalAmount: { type: Number, required: true },
 
         razorpayOrderId: { type: String },
+        remark: { type: String },
 
         razorpayPaymentId: { type: String },
         razorpaySignature: { type: String },
@@ -36,6 +37,8 @@ const BillsPaymentsSchema = new mongoose.Schema(
             enum: ["Pending", "Failed", "Success", "Refunded"],
             default: "Pending",
         },
+
+
         paymentMode: {
             type: String,
         },
