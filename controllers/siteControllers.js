@@ -51,6 +51,7 @@ export const getAllSites = async (req, res) => {
       order = "desc",
       isPagination = "true",
       page = 1,
+      siteType,
       limit = 10,
       status,
     } = req.query;
@@ -60,6 +61,10 @@ export const getAllSites = async (req, res) => {
     // Status filter
     if (status === "true") match.status = true;
     if (status === "false") match.status = false;
+
+    if (siteType) {
+      match.siteType = siteType; // ObjectId expected
+    }
 
     // Search match
     if (search && search.trim() !== "") {
@@ -84,7 +89,7 @@ export const getAllSites = async (req, res) => {
 
     const sortOrder = order === "asc" ? 1 : -1;
 
-    let query = Site.find(match).populate("siteType").sort({ createdAt: sortOrder });
+    let query = Site.find(match).sort({ createdAt: sortOrder });
 
     const total = await Site.countDocuments(match);
 

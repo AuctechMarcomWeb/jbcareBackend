@@ -3,58 +3,6 @@ import mongoose from "mongoose";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 
-// ✅ Create Unit
-export const createUnit1 = async (req, res) => {
-  try {
-    const {
-      unitNumber,
-      block,
-      floor,
-      areaSqFt,
-      siteId,
-      projectId,
-      unitTypeId,
-      status,
-    } = req.body;
-
-    // 🔹 Validation
-    if (
-      !unitNumber ||
-      typeof unitNumber !== "string" ||
-      unitNumber.trim() === ""
-    ) {
-      return sendError(
-        res,
-        "unitNumber is required and must be a non-empty string",
-        400
-      );
-    }
-    if (!siteId) return sendError(res, "siteId is required", 400);
-    // if (!projectId) return sendError(res, "projectId is required", 400);
-    // if (!unitTypeId) return sendError(res, "unitTypeId is required", 400);
-
-    // // 🔍 Check duplicate unitNumber
-    // const existing = await Unit.findOne({ unitNumber: unitNumber.trim() });
-    // if (existing)
-    //   return sendError(res, "Unit with this unitNumber already exists", 400);
-
-    const unit = await Unit.create({
-      unitNumber: unitNumber.trim(),
-      block,
-      floor,
-      areaSqFt,
-      siteId,
-      projectId,
-      unitTypeId,
-      status,
-    });
-
-    return sendSuccess(res, "Unit created successfully", unit, 201);
-  } catch (err) {
-    console.error("Create Unit Error:", err);
-    return sendError(res, "Failed to create Unit", 500, err.message);
-  }
-};
 
 export const createUnit = async (req, res) => {
   try {
@@ -62,6 +10,7 @@ export const createUnit = async (req, res) => {
       unitNumber,
       block,
       floor,
+      meterId, customerId, meterSerialNumber, load,
       areaSqFt,
       siteId,
       projectId,
@@ -82,6 +31,7 @@ export const createUnit = async (req, res) => {
       block,
       floor,
       areaSqFt,
+      meterId, customerId, meterSerialNumber, load,
       siteId,
       projectId,
       status,
@@ -164,7 +114,11 @@ export const getAllUnits = async (req, res) => {
     const sortOrder = order === "asc" ? 1 : -1;
 
     let query = Unit.find(match)
-      .populate("siteId", "siteName")
+      .populate({
+        path: "siteId",
+        select: "siteName siteType",
+
+      })
       .populate("unitTypeId", "title")
       .populate("landlordId", "name phone email")
       .populate({
@@ -176,6 +130,7 @@ export const getAllUnits = async (req, res) => {
         select: "name phone email",
       })
       .sort({ createdAt: sortOrder });
+
 
     const total = await Unit.countDocuments(match);
     if (isPagination === "true") {
@@ -208,6 +163,7 @@ export const updateUnit = async (req, res) => {
       block,
       floor,
       areaSqFt,
+      meterId, customerId, meterSerialNumber, load,
       siteId,
       projectId,
       unitTypeId,
@@ -219,6 +175,10 @@ export const updateUnit = async (req, res) => {
     if (unitNumber?.trim()) updateData.unitNumber = unitNumber.trim();
     if (block) updateData.block = block;
     if (floor) updateData.floor = floor;
+    if (meterId) updateData.meterId = meterId;
+    if (customerId) updateData.customerId = customerId;
+    if (meterSerialNumber) updateData.meterSerialNumber = meterSerialNumber;
+    if (load) updateData.load = load;
     if (areaSqFt) updateData.areaSqFt = areaSqFt;
     if (siteId) updateData.siteId = siteId;
     if (projectId) updateData.projectId = projectId;

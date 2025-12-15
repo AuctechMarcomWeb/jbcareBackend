@@ -6,35 +6,50 @@ import { sendError, sendSuccess } from "../utils/responseHandler.js";
 // ======================================================
 export const createFixElectricityCharges = async (req, res) => {
     try {
-        const { siteTypeId, fixLoadcharges, fixmantance } = req.body;
+        const {
+            siteType,
+            fixLoadcharges,
+            fixmantance,
+            surchargePercent,
+            tariffRate,
+            dgTariff,
+        } = req.body;
 
-        if (!siteTypeId) {
-            return sendError(res, "siteTypeId is required", 400);
+        if (!siteType) {
+            return sendError(res, "siteType is required", 400);
         }
 
-        if (fixLoadcharges == null || typeof fixLoadcharges !== "number") {
-            return sendError(res, "fixLoadcharges must be a valid number", 400);
+        const numberFields = {
+            fixLoadcharges,
+            fixmantance,
+            surchargePercent,
+            tariffRate,
+            dgTariff,
+        };
+
+        for (const [key, value] of Object.entries(numberFields)) {
+            if (value == null || typeof value !== "number") {
+                return sendError(res, `${key} must be a valid number`, 400);
+            }
         }
 
-        if (fixmantance == null || typeof fixmantance !== "number") {
-            return sendError(res, "fixmantance must be a valid number", 400);
-        }
-
-        // Check if already exists for same siteType
-        const existing = await FixElectricityCharges.findOne({ siteTypeId });
-
+        // 🔁 Prevent duplicate Site Type
+        const existing = await FixElectricityCharges.findOne({ siteType });
         if (existing) {
             return sendError(
                 res,
-                "Charges for this SiteType already exist. Please update instead.",
+                "Charges for this Site Type already exist. Please update instead.",
                 400
             );
         }
 
         const created = await FixElectricityCharges.create({
-            siteTypeId,
+            siteType,
             fixLoadcharges,
             fixmantance,
+            surchargePercent,
+            tariffRate,
+            dgTariff,
         });
 
         return sendSuccess(
@@ -53,13 +68,15 @@ export const createFixElectricityCharges = async (req, res) => {
     }
 };
 
+
+
 // ======================================================
 // ✅ Get All Fix Electricity Charges (With Pagination + Search)
 // ======================================================
 export const getAllFixElectricityCharges = async (req, res) => {
     try {
         const {
-            search,
+            siteType,
             isActive,
             isPagination = "true",
             page = 1,
@@ -68,28 +85,25 @@ export const getAllFixElectricityCharges = async (req, res) => {
 
         const match = {};
 
-        if (search && search.trim() !== "") {
-            const regex = new RegExp(search.trim(), "i");
-            match.$or = [
-                { fixLoadcharges: { $regex: regex } },
-                { fixmantance: { $regex: regex } },
-            ];
+        // 🔍 Filter by siteType (case-insensitive)
+        if (siteType) {
+            match.siteType = new RegExp(`^${siteType}$`, "i");
         }
 
+        // 🔘 Active filter
         if (isActive !== undefined) {
             match.isActive = isActive === "true";
         }
 
         let query = FixElectricityCharges.find(match)
-            .populate("siteTypeId")
             .sort({ createdAt: -1 });
 
         const total = await FixElectricityCharges.countDocuments(match);
 
         if (isPagination === "true") {
-            query = query
-                .skip((page - 1) * parseInt(limit))
-                .limit(parseInt(limit));
+            query
+                .skip((Number(page) - 1) * Number(limit))
+                .limit(Number(limit));
         }
 
         const charges = await query;
@@ -115,24 +129,34 @@ export const getAllFixElectricityCharges = async (req, res) => {
     }
 };
 
+
+
 // ======================================================
 // ✅ Update Fix Electricity Charges
 // ======================================================
 export const updateFixElectricityCharges = async (req, res) => {
     try {
-        const { siteTypeId, fixLoadcharges, fixmantance, isActive } = req.body;
+        const {
+            siteType,
+            fixLoadcharges,
+            fixmantance,
+            surchargePercent,
+            tariffRate,
+            dgTariff,
+            isActive,
+        } = req.body;
 
-        // Check duplicate siteTypeId if changed
-        if (siteTypeId) {
-            const existing = await FixElectricityCharges.findOne({
+        // 🔁 Duplicate check if siteType changes
+        if (siteType) {
+            const duplicate = await FixElectricityCharges.findOne({
                 _id: { $ne: req.params.id },
-                siteTypeId,
+                siteType,
             });
 
-            if (existing) {
+            if (duplicate) {
                 return sendError(
                     res,
-                    "Charges for this SiteType already exist",
+                    "Charges for this Site Type already exist",
                     400
                 );
             }
@@ -140,11 +164,21 @@ export const updateFixElectricityCharges = async (req, res) => {
 
         const updated = await FixElectricityCharges.findByIdAndUpdate(
             req.params.id,
-            { siteTypeId, fixLoadcharges, fixmantance, isActive },
+            {
+                siteType,
+                fixLoadcharges,
+                fixmantance,
+                surchargePercent,
+                tariffRate,
+                dgTariff,
+                isActive,
+            },
             { new: true }
         );
 
-        if (!updated) return sendError(res, "Record not found", 404);
+        if (!updated) {
+            return sendError(res, "Record not found", 404);
+        }
 
         return sendSuccess(
             res,
@@ -162,15 +196,18 @@ export const updateFixElectricityCharges = async (req, res) => {
     }
 };
 
+
+
 // ======================================================
 // ✅ Delete Fix Electricity Charges
 // ======================================================
 export const deleteFixElectricityCharges = async (req, res) => {
     try {
-        const deleted = await FixElectricityCharges.findByIdAndDelete(
-            req.params.id
-        );
-        if (!deleted) return sendError(res, "Record not found", 404);
+        const deleted = await FixElectricityCharges.findByIdAndDelete(req.params.id);
+
+        if (!deleted) {
+            return sendError(res, "Record not found", 404);
+        }
 
         return sendSuccess(
             res,
@@ -187,3 +224,6 @@ export const deleteFixElectricityCharges = async (req, res) => {
         );
     }
 };
+
+
+
