@@ -5,8 +5,7 @@ const siteSchema = new mongoose.Schema(
   {
     siteName: { type: String, required: true, unique: true },
     siteType: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "SiteType",
+      type: String,
       required: true,
     },
     siteAddress: { type: String, required: true },

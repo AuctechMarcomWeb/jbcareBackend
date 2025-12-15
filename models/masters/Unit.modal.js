@@ -6,6 +6,10 @@ const unitSchema = new mongoose.Schema(
     unitNumber: { type: String, required: true },
     block: { type: String },
     floor: { type: String },
+    meterId: { type: String, trim: true },
+    customerId: { type: String, trim: true },
+    meterSerialNumber: { type: String, trim: true },
+    load: { type: String, trim: true },
     areaSqFt: { type: Number },
     siteId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -15,7 +19,6 @@ const unitSchema = new mongoose.Schema(
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
-      // required: true,
     },
     unitTypeId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -30,6 +33,7 @@ const unitSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Tenant",
     },
+
     landlordHistory: [
       {
         landlordId: { type: mongoose.Schema.Types.ObjectId, ref: "Landlord" },
