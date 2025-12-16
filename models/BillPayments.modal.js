@@ -47,6 +47,7 @@ const BillsPaymentsSchema = new mongoose.Schema(
         paidBy: { type: String },
         payerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         lastUpdatedDate: { type: Date, default: Date.now },
+        chequeNumber: { type: String },
         refundId: { type: String },
         refundAmount: { type: Number },
         refundStatus: {

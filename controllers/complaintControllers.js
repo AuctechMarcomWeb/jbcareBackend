@@ -427,12 +427,7 @@ export const deleteComplaint = async (req, res) => {
   }
 };
 
-/**
- * 📋 Get Complaints by User ID or Complaint ID
- * ✅ Examples:
- *    GET /api/complaints/user/671fc84a3c29f9a5f1b23456
- *    GET /api/complaints/6721a5e6c4b7a9b1bda4cfe2
- */
+
 export const getComplaintsByUserOrId = async (req, res) => {
   try {
     const { userId, complaintId } = req.params;

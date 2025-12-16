@@ -8,6 +8,7 @@ const PaymentLedgerSchema = new mongoose.Schema({
 
     remark: { type: String },
     description: { type: String },
+    chequeNumber: { type: String },
 
     paymentMode: {
         type: String,
