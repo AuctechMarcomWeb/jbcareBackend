@@ -490,7 +490,7 @@ export const payBillFromLanlordWallet = async (req, res) => {
 
 export const payBillbyAdmin = async (req, res) => {
     try {
-        const { billId, landlordId, siteId, unitId, amount, paymentMode } = req.body;
+        const { billId, landlordId, siteId, unitId, amount, paymentMode, chequeNumber, paymentId } = req.body;
 
         if (!billId || !landlordId || !siteId || !unitId || !amount) {
             return res.status(400).json({
@@ -552,12 +552,12 @@ export const payBillbyAdmin = async (req, res) => {
 
 
         // 7️⃣ Payment amount validation
-        if (amount > bill.totalAmount) {
-            return res.status(400).json({
-                success: false,
-                message: "Amount cannot be greater than the bill total amount.",
-            });
-        }
+        // if (amount > bill.totalAmount) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         message: "Amount cannot be greater than the bill total amount.",
+        //     });
+        // }
 
         await landlord.save();
 
@@ -566,7 +566,14 @@ export const payBillbyAdmin = async (req, res) => {
         bill.paidAt = new Date();
         bill.paidBy = "Admin";
         bill.paymentMode = paymentMode;
-        bill.paymentId = "Admin-" + Date.now();
+        bill.chequeNumber = chequeNumber;
+        if (paymentId) {
+
+            bill.paymentId = paymentId;
+        } else {
+            bill.paymentId = "Admin-" + Date.now();
+
+        }
         bill.payerId = landlordId;
         await bill.save();
 
@@ -579,6 +586,7 @@ export const payBillbyAdmin = async (req, res) => {
             totalAmount: amount,
             status: "Success",
             paymentMode: paymentMode,
+            chequeNumber: chequeNumber,
             remark: `Bill #${billId} paid by Admin`,
             description: " Paid By Admin ",
             paidAt: new Date(),
@@ -610,6 +618,7 @@ export const payBillbyAdmin = async (req, res) => {
             description: `Admin payment for Bill No ${bill.billNo || billId}`,
             paymentMode: paymentMode,
             entryType,      // Debit
+            chequeNumber,      // Debit
             debitAmount,    // amount
             creditAmount,
             openingBalance,

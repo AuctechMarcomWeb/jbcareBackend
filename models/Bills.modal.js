@@ -60,6 +60,7 @@ const BillsSchema = new mongoose.Schema({
     generatedOn: { type: Date, default: Date.now },
 
     paymentMode: String,
+    chequeNumber: String,
     paymentId: String,
     paidAt: Date,
     paidBy: String,
