@@ -201,7 +201,7 @@ export const getAllMaintainCharges = async (req, res) => {
     const sortOrder = order === "asc" ? 1 : -1;
 
     const charges = await MaintainCharges.find(filters)
-      .populate("siteId", "siteName")
+      .populate("siteId", "siteName siteType")
       .populate("unitId", "unitNumber")
       .sort({ [sortBy]: sortOrder });
 
