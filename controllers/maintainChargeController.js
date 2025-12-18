@@ -1,6 +1,8 @@
 import MaintainCharges from "../models/MantainCharge.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import FixedCharges from "../models/utilsSchemas/FixedCharges.modal.js";
+import Landlord from "../models/LandLord.modal.js";
+import Tenant from "../models/Tenant.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js"; // optional utility handlers
 
 /**
@@ -23,6 +25,7 @@ export const createMaintainCharge = async (req, res) => {
 
     // 🔍 Check if maintenance charge already exists for this site + unit
     const existingCharge = await MaintainCharges.findOne({ siteId, unitId });
+
 
     let result;
     if (existingCharge) {
@@ -64,7 +67,7 @@ export const createMaintainCharge = async (req, res) => {
 /**
  * 🟡 READ / GET All Maintenance Charges (Global Search)
  */
-export const getAllMaintainCharges = async (req, res) => {
+export const getAllMaintainCharges1 = async (req, res) => {
   try {
     const {
       siteId,
@@ -86,6 +89,14 @@ export const getAllMaintainCharges = async (req, res) => {
     if (siteId) filters.siteId = siteId;
     if (unitId) filters.unitId = unitId;
     if (isActive !== undefined) filters.isActive = isActive === "true";
+
+    const existingLandlord = await Landlord.findOne({
+      isActive: true,
+    });
+
+    console.log("existingLandlord", existingLandlord);
+
+
 
     // 🔹 Date filter (effectiveFrom)
     if (fromDate || toDate) {
@@ -114,18 +125,18 @@ export const getAllMaintainCharges = async (req, res) => {
 
     const searchedCharges = search
       ? charges.filter((item) => {
-          const siteName = item?.siteId?.siteName || "";
-          const unitNumber = item?.unitId?.unitNumber || "";
-          const rateType = item?.rateType || "";
-          const description = item?.description || "";
+        const siteName = item?.siteId?.siteName || "";
+        const unitNumber = item?.unitId?.unitNumber || "";
+        const rateType = item?.rateType || "";
+        const description = item?.description || "";
 
-          return (
-            siteName.match(searchRegex) ||
-            unitNumber.match(searchRegex) ||
-            rateType.match(searchRegex) ||
-            description.match(searchRegex)
-          );
-        })
+        return (
+          siteName.match(searchRegex) ||
+          unitNumber.match(searchRegex) ||
+          rateType.match(searchRegex) ||
+          description.match(searchRegex)
+        );
+      })
       : charges;
 
     // 🔹 Pagination
@@ -153,6 +164,95 @@ export const getAllMaintainCharges = async (req, res) => {
     );
   } catch (error) {
     console.error("Get All Maintain Charges Error:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const getAllMaintainCharges = async (req, res) => {
+  try {
+    const {
+      siteId,
+      unitId,
+      isActive,
+      search = "",
+      fromDate,
+      toDate,
+      isPagination = "true",
+      page = 1,
+      limit = 10,
+      sortBy = "effectiveFrom",
+      order = "desc",
+    } = req.query;
+
+    const filters = {};
+
+    if (siteId) filters.siteId = siteId;
+    if (unitId) filters.unitId = unitId;
+    if (isActive !== undefined) filters.isActive = isActive === "true";
+
+    if (fromDate || toDate) {
+      filters.effectiveFrom = {};
+      if (fromDate)
+        filters.effectiveFrom.$gte = new Date(fromDate);
+      if (toDate)
+        filters.effectiveFrom.$lte = new Date(toDate);
+    }
+
+    const sortOrder = order === "asc" ? 1 : -1;
+
+    const charges = await MaintainCharges.find(filters)
+      .populate("siteId", "siteName")
+      .populate("unitId", "unitNumber")
+      .sort({ [sortBy]: sortOrder });
+
+    // 🔹 Attach Tenant & Landlord per Unit
+    const finalData = await Promise.all(
+      charges.map(async (item) => {
+        const tenant = await Tenant.findOne({
+          unitId: item.unitId?._id,
+          isActive: true,
+        }).populate("landlordId", "name phone email");
+
+        return {
+          ...item.toObject(),
+          tenant: tenant
+            ? {
+              _id: tenant._id,
+              name: tenant.name,
+              phone: tenant.phone,
+              email: tenant.email,
+            }
+            : null,
+
+          landlord: tenant?.landlordId
+            ? {
+              _id: tenant.landlordId._id,
+              name: tenant.landlordId.name,
+              phone: tenant.landlordId.phone,
+              email: tenant.landlordId.email,
+            }
+            : null,
+        };
+      })
+    );
+
+    // 🔹 Pagination
+    const total = finalData.length;
+    let paginatedData = finalData;
+
+    if (isPagination === "true") {
+      const startIndex = (page - 1) * limit;
+      paginatedData = finalData.slice(startIndex, startIndex + Number(limit));
+    }
+
+    return sendSuccess(res, "Maintenance charges fetched successfully", {
+      data: paginatedData,
+      total,
+      currentPage: Number(page),
+      totalPages: isPagination === "true" ? Math.ceil(total / limit) : 1,
+    });
+  } catch (error) {
+    console.error(error);
     return sendError(res, error.message);
   }
 };

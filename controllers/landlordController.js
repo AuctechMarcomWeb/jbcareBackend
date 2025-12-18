@@ -1,4 +1,5 @@
 import Landlord from "../models/LandLord.modal.js";
+import User from "../models/User.modal.js";
 
 import Unit from "../models/masters/Unit.modal.js";
 import mongoose from "mongoose";
@@ -23,8 +24,8 @@ export const addLandlord = async (req, res) => {
       idProof,
       siteId,
       unitIds = [],
-      propertyDetails, // { propertyName, propertyType, propertyAddress, propertyDocumentsUrl }
-      bankDetails, // { accountHolderName, bankName, accountNumber, ifscCode, branchAddress }
+      propertyDetails,
+      bankDetails,
       emergencyContactName,
       emergencyContactNumber,
       notes,
@@ -38,48 +39,124 @@ export const addLandlord = async (req, res) => {
       meterSerialNumber,
       openingBalance,
       purpose,
-      typePurpose
+      typePurpose,
     } = req.body;
 
-    // 🧩 Validation
-    if (!name || !phone || !siteId || unitIds.length === 0) {
-      const missingFields = [];
-      if (!name) missingFields.push("name");
-      if (!phone) missingFields.push("phone");
-      if (!siteId) missingFields.push("siteId");
-      // if (!projectId) missingFields.push("projectId");
-      if (unitIds.length === 0) missingFields.push("unitIds");
+    // -----------------------------
+    // 🔴 BASIC REQUIRED VALIDATION
+    // -----------------------------
+    const missingFields = [];
+    if (!name) missingFields.push("name");
+    if (!phone) missingFields.push("phone");
+    if (!siteId) missingFields.push("siteId");
+    if (!unitIds || unitIds.length === 0) missingFields.push("unitIds");
 
+    if (missingFields.length) {
       return sendError(
         res,
-        `Missing required field(s): ${missingFields.join(", ")}.`,
-        400,
-        { missingFields }
+        `Missing required field(s): ${missingFields.join(", ")}`,
+        400
       );
     }
 
-    // 🧠 Check for duplicate active phone
-    const existing = await Landlord.findOne({ phone, isActive: true });
-    if (existing)
-      return sendError(res, "Landlord with this phone already exists.", 400);
+    // -----------------------------
+    // 📱 PHONE / EMAIL FORMAT CHECK
+    // -----------------------------
+    // if (!/^[6-9]\d{9}$/.test(phone)) {
+    //   return sendError(res, "Invalid phone number format", 400);
+    // }
 
-    // 🏗️ Create new active landlord
+    // if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+    //   return sendError(res, "Invalid email format", 400);
+    // }
+
+    // -----------------------------
+    // 🔍 DUPLICATE CHECK — LANDLORD
+    // -----------------------------
+    const existingLandlord = await Landlord.findOne({
+
+      isActive: true,
+      $or: [{ phone }, ...(email ? [{ email }] : [])],
+    });
+
+    if (existingLandlord) {
+      return sendError(
+        res,
+        "Active landlord with this phone or email already exists",
+        409
+      );
+    }
+
+    // -----------------------------
+    // 🔍 DUPLICATE CHECK — USER
+    // -----------------------------
+    const existingUser = await User.findOne({
+      $or: [{ phone }, ...(email ? [{ email }] : [])],
+    });
+
+    if (existingUser) {
+      return sendError(
+        res,
+        "User with this phone or email already exists",
+        409
+      );
+    }
+
+    // -----------------------------
+    // 🏘️ UNIT VALIDATION
+    // -----------------------------
+    const uniqueUnitIds = [...new Set(unitIds.map(id => id.toString()))];
+    if (uniqueUnitIds.length !== unitIds.length) {
+      return sendError(res, "Duplicate unitIds are not allowed", 400);
+    }
+
+    const unitsCount = await Unit.countDocuments({ _id: { $in: unitIds } });
+    if (unitsCount !== unitIds.length) {
+      return sendError(res, "One or more units do not exist", 400);
+    }
+
+    // -----------------------------
+    // 💰 OPENING BALANCE VALIDATION
+    // -----------------------------
+    if (openingBalance) {
+      if (
+        typeof openingBalance.amount !== "number" ||
+        openingBalance.amount < 0
+      ) {
+        return sendError(res, "Invalid opening balance amount", 400);
+      }
+
+      if (
+        openingBalance.type &&
+        !["Debit", "Credit"].includes(openingBalance.type)
+      ) {
+        return sendError(
+          res,
+          "Opening balance type must be Debit or Credit",
+          400
+        );
+      }
+    }
+
+    // -----------------------------
+    // 🏗️ CREATE LANDLORD
+    // -----------------------------
     const landlord = await Landlord.create({
       name,
       fatherOrSpouseName,
       gender,
       dob,
       phone,
-      address,
       alternateMobileNumber,
       email,
+      address,
       coorespondenceAddress,
       profilePic,
-      idProof, // { type, number, documentUrl }
+      idProof,
       siteId,
       unitIds,
-      propertyDetails, // { propertyName, propertyType, propertyAddress, propertyDocumentsUrl }
-      bankDetails, // { accountHolderName, bankName, accountNumber, ifscCode, branchAddress }
+      propertyDetails,
+      bankDetails,
       emergencyContactName,
       emergencyContactNumber,
       notes,
@@ -89,7 +166,6 @@ export const addLandlord = async (req, res) => {
       ownershipstartDate,
       ownershipEndDate,
       createdBy: req.user?._id || null,
-      // 🆕 NEW ELECTRIC METER FIELDS
       meterId,
       customerId,
       meterSerialNumber,
@@ -97,199 +173,107 @@ export const addLandlord = async (req, res) => {
       purpose,
     });
 
-
-
-    // 🔄 Update each linked unit
+    // -----------------------------
+    // 🔄 UPDATE UNITS & HISTORY
+    // -----------------------------
     for (const unitId of unitIds) {
       const unit = await Unit.findById(unitId).populate("landlordId");
       if (!unit) continue;
 
-      // 🏘️ If a previous landlord exists
       if (unit.landlordId && unit.landlordId.isActive) {
         const previousLandlord = unit.landlordId;
 
-        // ✅ Close any previous active record
         const lastActive = unit.landlordHistory
-          .slice()
+          ?.slice()
           .reverse()
           .find(
-            (h) =>
-              h.landlordId?.toString?.() === previousLandlord._id.toString() &&
-              h.isActive === true &&
+            h =>
+              h.landlordId?.toString() === previousLandlord._id.toString() &&
+              h.isActive &&
               !h.endDate
           );
 
         if (lastActive) {
           lastActive.isActive = false;
           lastActive.endDate = new Date();
-        } else {
-          unit.landlordHistory.push({
-            landlordId: previousLandlord._id,
-            startDate: previousLandlord.createdAt,
-            endDate: new Date(),
-            isActive: false,
-          });
         }
 
-        // ❌ Deactivate previous landlord globally
         await Landlord.findByIdAndUpdate(previousLandlord._id, {
           $set: { isActive: false },
         });
       }
 
-      // ✅ Assign new landlord
       unit.landlordId = landlord._id;
-
-      // 🔹 Add new active record if not already present
-      const lastRecord = unit.landlordHistory[unit.landlordHistory.length - 1];
-      if (
-        !lastRecord ||
-        lastRecord.landlordId?.toString() !== landlord._id.toString() ||
-        lastRecord.isActive === false
-      ) {
-        unit.landlordHistory.push({
-          landlordId: landlord._id,
-          startDate: new Date(),
-          isActive: true,
-        });
-      }
+      unit.landlordHistory.push({
+        landlordId: landlord._id,
+        startDate: new Date(),
+        isActive: true,
+      });
 
       await unit.save();
     }
 
-    const namePart = landlord?.name
-      ? landlord.name.substring(0, 3).toLowerCase()
-      : "usr";
-
-    const generatedPassword = `${namePart}@123`;
+    // -----------------------------
+    // 👤 CREATE USER
+    // -----------------------------
+    const password = `${landlord.name.substring(0, 3).toLowerCase()}@123`;
 
     const createdUser = await createUser({
-      name: landlord?.name,
-      email: landlord?.email,
-      phone: landlord?.phone,
-      password: generatedPassword,
+      name: landlord.name,
+      email: landlord.email,
+      phone: landlord.phone,
+      password,
       role: "landlord",
-      referenceId: landlord?._id,
+      referenceId: landlord._id,
       siteId,
-      unitId: unitIds[0] || null,
+      unitId: unitIds[0],
     });
 
-    // 🔹 Save user ID back to landlord
     landlord.userId = createdUser._id;
     await landlord.save();
+
+    // -----------------------------
+    // 📒 OPENING BALANCE LEDGER
+    // -----------------------------
     if (
       openingBalance &&
-      Number(openingBalance.amount) > 0 &&
+      openingBalance.amount > 0 &&
       ["Debit", "Credit"].includes(openingBalance.type)
     ) {
-
-      const landlordId = landlord._id
-
-      console.log("landlord", landlord);
-
-      const siteId = landlord.siteId
-      const unitId = unitIds[0]
-
       const lastEntry = await PaymentLedger.findOne({
-        landlordId,
+        landlordId: landlord._id,
         siteId,
-        unitId,
+        unitId: unitIds[0],
       }).sort({ entryDate: -1 });
 
-      console.log("openingBalance", openingBalance);
+      const previousBalance = lastEntry?.closingBalance || 0;
 
-      const openingBalance1 = lastEntry ? lastEntry?.closingBalance : 0;
+      const isDebit = openingBalance.type === "Debit";
+      const debitAmount = isDebit ? openingBalance.amount : 0;
+      const creditAmount = !isDebit ? openingBalance.amount : 0;
 
+      const closingBalance = isDebit
+        ? previousBalance - debitAmount
+        : previousBalance + creditAmount;
 
-      const amount = openingBalance?.amount
-
-      if (openingBalance.type == "Debit") {
-
-        const entryType = "Debit";
-        const debitAmount = amount;
-        const creditAmount = 0;
-
-        // closing balance decreases because it's debit
-        const closingBalance = openingBalance1 - debitAmount;
-
-        // ✔ Create Ledger Entry
-        await PaymentLedger.create({
-          landlordId,
-          siteId,
-          unitId,
-          remark: typePurpose ? typePurpose : "",
-          description: "",
-          paymentMode: "",
-          entryType,
-          debitAmount,
-          creditAmount,
-          openingBalance: closingBalance,
-          closingBalance,
-          entryDate: new Date(),
-        });
-
-      } else {
-        const entryType = "Credit";
-        const debitAmount = 0;
-        const creditAmount = amount;
-
-        // closing balance decreases because it's debit
-        const closingBalance = openingBalance1 + creditAmount;
-
-        // ✔ Create Ledger Entry
-        await PaymentLedger.create({
-          landlordId,
-          siteId,
-          unitId,
-          remark: typePurpose ? typePurpose : "",
-          description: "",
-          paymentMode: "",
-          entryType,
-
-          debitAmount,
-          creditAmount,
-          openingBalance: closingBalance,
-          closingBalance,
-          entryDate: new Date(),
-        });
-      }
-
-
-
-      console.log("lastEntry", lastEntry);
-
-
-      // const typePurpose =
-      //   openingBalance.type === "Debit" ? "Due Amount" : "Advance Amount";
-      // await Ledger.create({
-      //   landlordId: landlord._id,
-      //   billId: null, // Not linked to any bill
-      //   siteId: landlord.siteId, // optional: remove if not needed
-      //   unitId: unitIds[0], // optional: remove if not needed
-      //   amount: openingBalance?.amount,
-      //   type:
-      //     openingBalance === "Credit"
-      //       ? "CREDIT"
-      //       : openingBalance === "Debit"
-      //         ? "DEBIT"
-      //         : null,
-      //   purpose: `New Opening balance added - ${typePurpose}` || purpose,
-      //   transactionType: "Opening Balance",
-      //   openingBalance: {
-      //     amount: openingBalance?.amount,
-      //     type: openingBalance.type,
-      //   },
-      //   closingBalance: {
-      //     amount: openingBalance?.amount,
-      //     type: openingBalance.type,
-      //   },
-      // });
+      await PaymentLedger.create({
+        landlordId: landlord._id,
+        siteId,
+        unitId: unitIds[0],
+        remark: typePurpose || "",
+        entryType: openingBalance.type,
+        debitAmount,
+        creditAmount,
+        openingBalance: previousBalance,
+        closingBalance,
+        entryDate: new Date(),
+      });
     }
 
-    return sendSuccess(res, "Landlord added successfully.", landlord, 201);
+    return sendSuccess(res, "Landlord added successfully", landlord, 201);
   } catch (err) {
     console.error("Add Landlord Error:", err);
-    return sendError(res, "Server Error", 500, err.message);
+    return sendError(res, "Server error", 500, err.message);
   }
 };
 
