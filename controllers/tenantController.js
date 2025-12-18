@@ -1,5 +1,6 @@
 import Tenant from "../models/Tenant.modal.js";
 import Landlord from "../models/LandLord.modal.js";
+import User from "../models/User.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import Site from "../models/masters/site.modal.js";
@@ -22,45 +23,104 @@ export const addTenant = async (req, res) => {
       gender,
       dob,
       idProof,
-      isActive = true, // Default to true
-      parking
+      isActive = true,
+      parking,
     } = req.body;
 
-    // 🧩 Validation
+    // -----------------------------
+    // 🔴 REQUIRED FIELD VALIDATION
+    // -----------------------------
     const missingFields = [];
     if (!name) missingFields.push("name");
     if (!phone) missingFields.push("phone");
     if (!siteId) missingFields.push("siteId");
     if (!unitId) missingFields.push("unitId");
     if (!landlordId) missingFields.push("landlordId");
+    if (!addedBy) missingFields.push("addedBy");
 
-    if (missingFields.length)
+    if (missingFields.length) {
       return sendError(
         res,
         `Missing required field(s): ${missingFields.join(", ")}`,
-        400,
-        "Validation Error"
+        400
       );
+    }
 
-    // ✅ Validate references
+    // if (!/^[6-9]\d{9}$/.test(phone)) {
+    //   return sendError(res, "Invalid phone number format", 400);
+    // }
+
+    // if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+    //   return sendError(res, "Invalid email format", 400);
+    // }
+
+
+    const existingTenant = await Tenant.findOne({
+      isActive: true,
+      $or: [{ phone }, ...(email ? [{ email }] : [])],
+    });
+
+    if (existingTenant) {
+      return sendError(
+        res,
+        "Active tenant with this phone or email already exists",
+        409
+      );
+    }
+
+    // -----------------------------
+    // 🔍 DUPLICATE CHECK — USER
+    // -----------------------------
+    const existingUser = await User.findOne({
+      $or: [{ phone }, ...(email ? [{ email }] : [])],
+    });
+
+    if (existingUser) {
+      return sendError(
+        res,
+        "User with this phone or email already exists",
+        409
+      );
+    }
+
+    // -----------------------------
+    // 🏠 LANDLORD & UNIT VALIDATION
+    // -----------------------------
     const landlord = await Landlord.findById(landlordId);
-    if (!landlord) return sendError(res, "Landlord not found.", 404);
+    if (!landlord || !landlord.isActive) {
+      return sendError(res, "Landlord not found or inactive", 404);
+    }
 
     const unit = await Unit.findById(unitId);
-    if (!unit) return sendError(res, "Unit not found.", 404);
+    if (!unit) {
+      return sendError(res, "Unit not found", 404);
+    }
 
-    // 🔄 DEACTIVATE OTHER ACTIVE TENANTS IN THIS UNIT
+    if (String(unit.landlordId) !== String(landlordId)) {
+      return sendError(
+        res,
+        "This unit does not belong to the given landlord",
+        400
+      );
+    }
+
+    // -----------------------------
+    // 🔄 DEACTIVATE OTHER ACTIVE TENANTS
+    // -----------------------------
     if (isActive) {
       const otherTenants = await Tenant.find({ unitId, isActive: true });
+
       for (const other of otherTenants) {
         other.isActive = false;
         other.tenancyEndDate = new Date();
         await other.save();
 
-        // Update the existing tenantHistory entry instead of pushing new
         const historyEntry = unit.tenantHistory.find(
-          (h) => String(h.tenantId) === String(other._id) && h.isActive === true
+          h =>
+            String(h.tenantId) === String(other._id) &&
+            h.isActive === true
         );
+
         if (historyEntry) {
           historyEntry.endDate = other.tenancyEndDate;
           historyEntry.isActive = false;
@@ -68,7 +128,9 @@ export const addTenant = async (req, res) => {
       }
     }
 
-    // 🏗 Create new tenant
+    // -----------------------------
+    // 🏗 CREATE TENANT
+    // -----------------------------
     const tenant = await Tenant.create({
       name,
       phone,
@@ -76,7 +138,6 @@ export const addTenant = async (req, res) => {
       address,
       profilePic,
       siteId,
-      // projectId,
       unitId,
       landlordId,
       addedBy,
@@ -86,11 +147,14 @@ export const addTenant = async (req, res) => {
       idProof,
       isActive,
       tenancyStartDate: new Date(),
-      parking
+      parking,
     });
 
-    // ✅ Update unit reference & history
+    // -----------------------------
+    // 🧾 UPDATE UNIT & HISTORY
+    // -----------------------------
     if (isActive) unit.tenantId = tenant._id;
+
     unit.tenantHistory.push({
       tenantId: tenant._id,
       startDate: tenant.tenancyStartDate,
@@ -98,31 +162,32 @@ export const addTenant = async (req, res) => {
       billTo: tenant.billTo,
       isActive: tenant.isActive,
     });
+
     await unit.save();
 
-    const namePart = tenant?.name
-      ? tenant.name.substring(0, 3).toLowerCase()
-      : "usr";
+    // -----------------------------
+    // 👤 CREATE USER
+    // -----------------------------
+    const password = `${tenant.name.substring(0, 3).toLowerCase()}@123`;
 
-    const generatedPassword = `${namePart}@123`;
     const createdUser = await createUser({
-      name: tenant?.name,
-      email: tenant?.email,
-      phone: tenant?.phone,
-      password: generatedPassword, // or generate random
+      name: tenant.name,
+      email: tenant.email,
+      phone: tenant.phone,
+      password,
       role: "tenant",
-      referenceId: tenant?._id, // optional to link
-      siteId, // ✅ added
-      // projectId, // ✅ added
-      unitId, // ✅ added
+      referenceId: tenant._id,
+      siteId,
+      unitId,
     });
-    // 🔹 Save userId back to tenant
+
     tenant.userId = createdUser._id;
     await tenant.save();
-    return sendSuccess(res, "Tenant added successfully.", tenant, 201);
+
+    return sendSuccess(res, "Tenant added successfully", tenant, 201);
   } catch (err) {
     console.error("Add Tenant Error:", err);
-    return sendError(res, "Failed to add tenant.", 500, err.message);
+    return sendError(res, "Failed to add tenant", 500, err.message);
   }
 };
 

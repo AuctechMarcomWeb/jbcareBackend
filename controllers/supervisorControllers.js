@@ -1,21 +1,13 @@
 import express from "express";
 import Supervisor from "../models/Supervisors.modal.js";
+import User from "../models/User.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import { createUser } from "../utils/createUser.js";
 import mongoose from "mongoose";
 
 const router = express.Router();
 
-const validateVerificationDocs = (docs) => {
-  if (!Array.isArray(docs)) return false;
-  for (const doc of docs) {
-    if (!doc.type || !["Aadhar", "PAN", "Other"].includes(doc.type))
-      return false;
-    if (!doc.number || typeof doc.number !== "string") return false;
-    if (doc.fileUrl && typeof doc.fileUrl !== "string") return false;
-  }
-  return true;
-};
+
 
 // ➤ Create Supervisor + User
 export const createSupervisor = async (req, res) => {
@@ -29,19 +21,53 @@ export const createSupervisor = async (req, res) => {
       isActive = true,
     } = req.body;
 
+    // -----------------------------
+    // Basic validations
+    // -----------------------------
     if (!name) return sendError(res, "Name is required", 400);
     if (!phone) return sendError(res, "Phone is required", 400);
     if (!siteId) return sendError(res, "siteId is required", 400);
 
-    if (!verificationDocuments || !verificationDocuments.length)
+    if (!verificationDocuments || !verificationDocuments.length) {
       return sendError(
         res,
         "At least one verification document is required",
         400
       );
+    }
+
+    // -----------------------------
+    // 🔍 Duplicate check (Supervisor)
+    // -----------------------------
+    const existingSupervisor = await Supervisor.findOne({
+      $or: [{ phone }, ...(email ? [{ email }] : [])],
+    });
+
+    if (existingSupervisor) {
+      return sendError(
+        res,
+        "Supervisor with this phone or email already exists",
+        409
+      );
+    }
+
+    // -----------------------------
+    // 🔍 Duplicate check (User)
+    // -----------------------------
+    const existingUser = await User.findOne({
+      $or: [{ phone }, ...(email ? [{ email }] : [])],
+    });
+
+    if (existingUser) {
+      return sendError(
+        res,
+        "User with this phone or email already exists",
+        409
+      );
+    }
 
     // --------------------------------------
-    // 🔥 Make ALL previous supervisors inactive for this site
+    // 🔥 Make previous supervisors inactive
     // --------------------------------------
     if (isActive === true) {
       await Supervisor.updateMany(
@@ -53,7 +79,7 @@ export const createSupervisor = async (req, res) => {
     // --------------------------------------
     // 1️⃣ Create Supervisor
     // --------------------------------------
-    const supervisor = new Supervisor({
+    const supervisor = await Supervisor.create({
       name,
       phone,
       email,
@@ -61,7 +87,6 @@ export const createSupervisor = async (req, res) => {
       siteId,
       isActive,
     });
-    await supervisor.save();
 
     // --------------------------------------
     // 2️⃣ Create User
@@ -79,17 +104,23 @@ export const createSupervisor = async (req, res) => {
     const user = await createUser(userPayload);
 
     // --------------------------------------
-    // 3️⃣ Link userId → Supervisor
+    // 3️⃣ Link User → Supervisor
     // --------------------------------------
     supervisor.userId = user._id;
     await supervisor.save();
 
-    return sendSuccess(res, "Supervisor created successfully", supervisor, 200);
+    return sendSuccess(
+      res,
+      "Supervisor created successfully",
+      supervisor,
+      201
+    );
   } catch (err) {
     console.error("Create Supervisor Error:", err);
     return sendError(res, "Server error", 500, err.message);
   }
 };
+
 
 export const getSupervisors = async (req, res) => {
   try {
