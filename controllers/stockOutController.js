@@ -137,8 +137,8 @@ export const getStockOutList = async (req, res) => {
             const list = await StockOut.find(filter)
                 .populate("categoryId", "name")
                 .populate("subCategoryId", "name")
-                .populate("siteId", "name")
-                .populate("supervisor", "name")
+                .populate("siteId", "siteName siteType")
+                .populate("supervisor", "name phone email")
                 .sort({ createdAt: -1 });
 
             return sendSuccess(res, list, "Stock out list fetched successfully");
@@ -149,8 +149,8 @@ export const getStockOutList = async (req, res) => {
         const list = await StockOut.find(filter)
             .populate("categoryId", "name")
             .populate("subCategoryId", "name")
-            .populate("siteId", "name")
-            .populate("supervisor", "name")
+            .populate("siteId", "siteName siteType")
+            .populate("supervisor", "name phone email")
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(Number(limit));
