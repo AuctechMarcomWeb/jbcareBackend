@@ -5,9 +5,7 @@ import Landlord from "../models/LandLord.modal.js";
 import Tenant from "../models/Tenant.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js"; // optional utility handlers
 
-/**
- * 🟢 CREATE Maintenance Charge
- */
+
 export const createMaintainCharge = async (req, res) => {
   try {
     const {
@@ -64,9 +62,7 @@ export const createMaintainCharge = async (req, res) => {
   }
 };
 
-/**
- * 🟡 READ / GET All Maintenance Charges (Global Search)
- */
+
 export const getAllMaintainCharges1 = async (req, res) => {
   try {
     const {
@@ -257,9 +253,7 @@ export const getAllMaintainCharges = async (req, res) => {
   }
 };
 
-/**
- * 🟠 GET Single Maintenance Charge by ID
- */
+
 export const getMaintainChargeById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -275,9 +269,7 @@ export const getMaintainChargeById = async (req, res) => {
   }
 };
 
-/**
- * 🔵 UPDATE Maintenance Charge
- */
+
 export const updateMaintainCharge = async (req, res) => {
   try {
     const { id } = req.params;
@@ -303,9 +295,7 @@ export const updateMaintainCharge = async (req, res) => {
   }
 };
 
-/**
- * 🔴 DELETE Maintenance Charge
- */
+
 export const deleteMaintainCharge = async (req, res) => {
   try {
     const { id } = req.params;
@@ -432,7 +422,6 @@ export const createUserMaintainCharges = async (req, res) => {
   }
 };
 
-// ✅ GET all fixed charges
 export const getFixedCharges = async (req, res) => {
   try {
     const charges = await FixedCharges.find({});
@@ -569,7 +558,6 @@ export const updateFixedChargeById = async (req, res) => {
   }
 };
 
-// ✅ DELETE Fixed Charge by ID
 export const deleteFixedChargeById = async (req, res) => {
   try {
     const { id } = req.params;
