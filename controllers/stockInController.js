@@ -114,7 +114,7 @@ export const getStockInList = async (req, res) => {
             list = await StockIn.find(filter)
                 .populate("categoryId", "name")
                 .populate("subCategoryId", "name")
-                .populate("siteId", "name")
+                .populate("siteId", "siteName siteType")
                 .sort({ createdAt: -1 });
 
             return sendSuccess(res, list, "Stock list fetched successfully");
@@ -125,7 +125,7 @@ export const getStockInList = async (req, res) => {
         list = await StockIn.find(filter)
             .populate("categoryId", "name")
             .populate("subCategoryId", "name")
-            .populate("siteId", "name")
+            .populate("siteId", "siteName siteType")
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(Number(limit));

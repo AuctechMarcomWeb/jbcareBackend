@@ -33,7 +33,11 @@ const StockOutSchema = new mongoose.Schema(
             required: true,
         },
 
-        productName: { type: String, required: true, trim: true },
+        productName: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "StockIn",
+            required: true,
+        },
         productLocation: { type: String, trim: true },
         unit: { type: String, default: "Nos" },
         remark: { type: String, },
