@@ -19,7 +19,9 @@ const SupervisorDetailsSchema = new Schema(
  */
 const MaterialDemandSchema = new Schema(
   {
-    materialName: { type: Schema.Types.ObjectId, required: true , ref:'StockItems'},
+    materialName: { type: Schema.Types.ObjectId, required: true, ref: 'StockIn' },
+    category: { type: Schema.Types.ObjectId, ref: 'Category' },
+    subCategory: { type: Schema.Types.ObjectId, ref: 'SubCategory' },
     quantity: { type: String, required: true, trim: true },
     reason: { type: String, trim: true },
     images: [{ type: String }],

@@ -14,6 +14,7 @@ export const createStockOut = async (req, res) => {
             categoryId,
             subCategoryId,
             siteId,
+            unitId,
             supervisor,
             productName,
             productLocation,
@@ -31,6 +32,7 @@ export const createStockOut = async (req, res) => {
             !siteId ||
             !supervisor ||
             !productName ||
+            !unitId ||
             !quantity
         ) {
             return sendError(res, "Required fields are missing");
@@ -51,6 +53,8 @@ export const createStockOut = async (req, res) => {
 
         // 🔍 Check masters
         const category = await Category.findById(categoryId);
+
+
         if (!category) return sendError(res, "Category not found");
 
         const subCategory = await SubCategory.findById(subCategoryId);
@@ -59,14 +63,19 @@ export const createStockOut = async (req, res) => {
         const site = await Site.findById(siteId);
         if (!site) return sendError(res, "Site not found");
 
+        // console.log("site", site);
+        // console.log("category", category);
+        // console.log("subCategory", subCategory);
         // 🔍 Find StockIn
         const stockIn = await StockIn.findOne({
             categoryId,
             subCategoryId,
             siteId,
-            productName,
-            isDeleted: false,
+            // productName,
+            // isDeleted: false,
         });
+        console.log("stockIn", stockIn);
+
 
         if (!stockIn) {
             return sendError(res, "Out of stock");
@@ -88,6 +97,7 @@ export const createStockOut = async (req, res) => {
             siteId,
             supervisor,
             productName,
+            unitId,
             productLocation,
             unit,
             quantity,
@@ -136,6 +146,9 @@ export const getStockOutList = async (req, res) => {
         if (isPagination === "false") {
             const list = await StockOut.find(filter)
                 .populate("categoryId", "name")
+                .populate("complainId")
+                .populate("productName")
+                .populate("unitId")
                 .populate("subCategoryId", "name")
                 .populate("siteId", "siteName siteType")
                 .populate("supervisor", "name phone email")
@@ -149,6 +162,9 @@ export const getStockOutList = async (req, res) => {
         const list = await StockOut.find(filter)
             .populate("categoryId", "name")
             .populate("subCategoryId", "name")
+            .populate("complainId")
+            .populate("productName")
+            .populate("unitId")
             .populate("siteId", "siteName siteType")
             .populate("supervisor", "name phone email")
             .sort({ createdAt: -1 })
