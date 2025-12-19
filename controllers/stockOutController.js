@@ -44,40 +44,33 @@ export const createStockOut = async (req, res) => {
 
         // 🔴 ObjectId validation
         if (
+            !mongoose.Types.ObjectId.isValid(productName) ||
             !mongoose.Types.ObjectId.isValid(categoryId) ||
             !mongoose.Types.ObjectId.isValid(subCategoryId) ||
             !mongoose.Types.ObjectId.isValid(siteId)
         ) {
-            return sendError(res, "Invalid categoryId, subCategoryId or siteId");
+            return sendError(res, "Invalid IDs provided");
         }
 
-        // 🔍 Check masters
-        const category = await Category.findById(categoryId);
-
-
-        if (!category) return sendError(res, "Category not found");
-
-        const subCategory = await SubCategory.findById(subCategoryId);
-        if (!subCategory) return sendError(res, "SubCategory not found");
-
-        const site = await Site.findById(siteId);
-        if (!site) return sendError(res, "Site not found");
-
-        // console.log("site", site);
-        // console.log("category", category);
-        // console.log("subCategory", subCategory);
-        // 🔍 Find StockIn
+        // 🔍 Find StockIn (ACTUAL PRODUCT)
         const stockIn = await StockIn.findOne({
+            _id: productName,
             categoryId,
             subCategoryId,
             siteId,
-            // productName,
-            // isDeleted: false,
+            isDeleted: false,
         });
+
+
         console.log("stockIn", stockIn);
 
 
+
         if (!stockIn) {
+            return sendError(res, "Stock item not found");
+        }
+
+        if (stockIn.quantity === 0) {
             return sendError(res, "Out of stock");
         }
 
@@ -105,17 +98,32 @@ export const createStockOut = async (req, res) => {
             date,
         });
 
-        // ➖ Deduct quantity from StockIn
+        // ➖ Deduct quantity
         stockIn.quantity -= quantity;
-        await stockIn.save(); // status auto handled by pre-save
+
+
+
+        if (stockIn.quantity === 0) {
+            stockIn.status = "OUT OF STOCK";
+        }
+        if (stockIn.quantity <= stockIn.lowStockLimit) {
+            stockIn.status = "LOW STOCK";
+
+        }
+        if (stockIn.quantity > stockIn.lowStockLimit) {
+            stockIn.status = "IN STOCK";
+        }
+
+
+        await stockIn.save();
 
         return sendSuccess(res, stockOut, "Stock out successfully");
+
     } catch (error) {
         console.log("❌ ERROR:", error);
         return sendError(res, error.message);
     }
 };
-
 
 export const getStockOutList = async (req, res) => {
     try {
@@ -124,6 +132,8 @@ export const getStockOutList = async (req, res) => {
             siteId,
             categoryId,
             subCategoryId,
+            supervisor,
+            unitId,
             page = 1,
             limit = 10,
             isPagination = "true",
@@ -136,8 +146,10 @@ export const getStockOutList = async (req, res) => {
         }
 
         if (siteId) filter.siteId = siteId;
+        if (unitId) filter.unitId = unitId;
         if (categoryId) filter.categoryId = categoryId;
         if (subCategoryId) filter.subCategoryId = subCategoryId;
+        if (supervisor) filter.supervisor = supervisor;
 
         const totalRecords = await StockOut.countDocuments(filter);
         const totalPages = Math.ceil(totalRecords / limit);
@@ -186,7 +198,6 @@ export const getStockOutList = async (req, res) => {
     }
 };
 
-
 export const updateStockOut = async (req, res) => {
     try {
         const { id } = req.params;
@@ -216,7 +227,6 @@ export const updateStockOut = async (req, res) => {
         return sendError(res, error.message);
     }
 };
-
 
 export const deleteStockOut = async (req, res) => {
     try {
