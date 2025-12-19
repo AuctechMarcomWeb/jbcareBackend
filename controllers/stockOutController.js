@@ -124,6 +124,8 @@ export const getStockOutList = async (req, res) => {
             siteId,
             categoryId,
             subCategoryId,
+            supervisor,
+            unitId,
             page = 1,
             limit = 10,
             isPagination = "true",
@@ -136,8 +138,10 @@ export const getStockOutList = async (req, res) => {
         }
 
         if (siteId) filter.siteId = siteId;
+        if (unitId) filter.unitId = unitId;
         if (categoryId) filter.categoryId = categoryId;
         if (subCategoryId) filter.subCategoryId = subCategoryId;
+        if (supervisor) filter.supervisor = supervisor;
 
         const totalRecords = await StockOut.countDocuments(filter);
         const totalPages = Math.ceil(totalRecords / limit);
