@@ -101,9 +101,6 @@ export const createStockOut = async (req, res) => {
         // ➖ Deduct quantity
         stockIn.quantity -= quantity;
 
-        console.log("stockIn.quantity", stockIn.quantity);
-        console.log("stockIn.lowStockLimit", stockIn.lowStockLimit);
-        console.log("stockIn.lowStockLimit", stockIn.quantity <= stockIn.lowStockLimit);
 
 
         if (stockIn.quantity === 0) {
@@ -111,14 +108,12 @@ export const createStockOut = async (req, res) => {
         }
         if (stockIn.quantity <= stockIn.lowStockLimit) {
             stockIn.status = "LOW STOCK";
-            console.log("sdfsdfsdf", stockIn.status);
 
         }
         if (stockIn.quantity > stockIn.lowStockLimit) {
             stockIn.status = "IN STOCK";
         }
 
-        console.log("stockIn", stockIn);
 
         await stockIn.save();
 
