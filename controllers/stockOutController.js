@@ -134,6 +134,8 @@ export const getStockOutList = async (req, res) => {
             subCategoryId,
             supervisor,
             unitId,
+            fromDate,
+            toDate,
             page = 1,
             limit = 10,
             isPagination = "true",
@@ -141,8 +143,9 @@ export const getStockOutList = async (req, res) => {
 
         const filter = {};
 
+        // 🔹 Search (productName ObjectId hai, isliye populate ke baad hi text search hota hai)
         if (search) {
-            filter.productName = { $regex: search, $options: "i" };
+            filter.productLocation = { $regex: search, $options: "i" };
         }
 
         if (siteId) filter.siteId = siteId;
@@ -151,6 +154,22 @@ export const getStockOutList = async (req, res) => {
         if (subCategoryId) filter.subCategoryId = subCategoryId;
         if (supervisor) filter.supervisor = supervisor;
 
+        // 🔹 Date range filter (based on `date` field)
+        if (fromDate || toDate) {
+            filter.date = {};
+
+            if (fromDate) {
+                filter.date.$gte = new Date(fromDate);
+            }
+
+            if (toDate) {
+                // poora din include karne ke liye
+                const endDate = new Date(toDate);
+                endDate.setHours(23, 59, 59, 999);
+                filter.date.$lte = endDate;
+            }
+        }
+
         const totalRecords = await StockOut.countDocuments(filter);
         const totalPages = Math.ceil(totalRecords / limit);
 
@@ -158,10 +177,10 @@ export const getStockOutList = async (req, res) => {
         if (isPagination === "false") {
             const list = await StockOut.find(filter)
                 .populate("categoryId", "name")
+                .populate("subCategoryId", "name")
                 .populate("complainId")
                 .populate("productName")
                 .populate("unitId")
-                .populate("subCategoryId", "name")
                 .populate("siteId", "siteName siteType")
                 .populate("supervisor", "name phone email")
                 .sort({ createdAt: -1 });
@@ -197,6 +216,7 @@ export const getStockOutList = async (req, res) => {
         return sendError(res, error.message);
     }
 };
+
 
 export const updateStockOut = async (req, res) => {
     try {
