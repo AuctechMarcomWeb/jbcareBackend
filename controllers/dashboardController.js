@@ -6,6 +6,7 @@ import StockItems from "../models/Stock management/StockItems.modal.js";
 import Landlord from "../models/LandLord.modal.js";
 import Tenant from "../models/Tenant.modal.js";
 import Supervisor from "../models/Supervisors.modal.js";
+import StockIn from "../models/Stock management/StockIn.modal.js";
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -230,19 +231,20 @@ export const getDashboardSummary = async (req, res) => {
     // 5️⃣ STOCK SUMMARY
     // ===========================
 
-    const totalStockItems = await StockItems.countDocuments({ isDeleted: false });
+    const totalStockItems = await StockIn.countDocuments({ isDeleted: false });
+    // const totalStockItems = await StockItems.countDocuments({ isDeleted: false });
 
-    const inStock = await StockItems.countDocuments({
+    const inStock = await StockIn.countDocuments({
       isDeleted: false,
       status: "IN STOCK",
     });
 
-    const lowStock = await StockItems.countDocuments({
+    const lowStock = await StockIn.countDocuments({
       isDeleted: false,
       status: "LOW STOCK",
     });
 
-    const outOfStock = await StockItems.countDocuments({
+    const outOfStock = await StockIn.countDocuments({
       isDeleted: false,
       status: "OUT OF STOCK",
     });
