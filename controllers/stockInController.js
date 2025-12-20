@@ -171,12 +171,28 @@ export const updateStockIn = async (req, res) => {
             { new: true, runValidators: true }
         );
 
+        console.log("updatedStock.quantity == 0", updatedStock.quantity == 0);
+        console.log("updatedStock.quantity < updatedStock.lowStockLimit", updatedStock.quantity < updatedStock.lowStockLimit);
+
+
+        if (updatedStock.quantity == 0) {
+            updatedStock.status = "OUT OF STOCK";
+        }
+        else if (updatedStock.quantity < updatedStock.lowStockLimit) {
+            updatedStock.status = "LOW STOCK";
+        }
+        else {
+            updatedStock.status = "IN STOCK";
+        }
+
         if (!updatedStock) {
             return sendError(res, "Stock not found");
         }
 
-        console.log("✔ STOCK UPDATED:", updatedStock._id);
+        await updatedStock.save();
 
+
+        console.log("updatedStock", updatedStock);
         return sendSuccess(res, updatedStock, "Stock updated successfully");
     } catch (error) {
         console.log("❌ ERROR:", error);

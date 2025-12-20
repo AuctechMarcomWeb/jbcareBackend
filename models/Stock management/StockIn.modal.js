@@ -48,17 +48,7 @@ const StockInSchema = new mongoose.Schema(
 // Index for fast search
 StockInSchema.index({ productName: 1 });
 
-// ⭐ AUTO UPDATE status BEFORE SAVE
-StockInSchema.pre("save", function (next) {
-    if (this.quantity === 0) {
-        this.status = "OUT OF STOCK";
-    } else if (this.quantity < this.threshold && this.quantity !== 0) {
-        this.status = "LOW STOCK";
-    } else {
-        this.status = "IN STOCK";
-    }
-    next();
-});
+
 
 const StockIn = mongoose.model("StockIn", StockInSchema);
 export default StockIn;

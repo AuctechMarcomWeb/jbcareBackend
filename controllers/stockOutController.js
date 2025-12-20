@@ -106,11 +106,11 @@ export const createStockOut = async (req, res) => {
         if (stockIn.quantity === 0) {
             stockIn.status = "OUT OF STOCK";
         }
-        if (stockIn.quantity <= stockIn.lowStockLimit) {
+        else if (stockIn.quantity <= stockIn.lowStockLimit) {
             stockIn.status = "LOW STOCK";
 
         }
-        if (stockIn.quantity > stockIn.lowStockLimit) {
+        else {
             stockIn.status = "IN STOCK";
         }
 
