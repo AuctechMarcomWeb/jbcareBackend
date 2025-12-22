@@ -80,6 +80,52 @@ export const createStockIn = async (req, res) => {
     }
 };
 
+export const getStockInCountStats = async (req, res) => {
+    try {
+        const { siteId, categoryId, subCategoryId } = req.query;
+
+        const matchFilter = { isDeleted: false };
+
+        if (siteId) matchFilter.siteId = siteId;
+        if (categoryId) matchFilter.categoryId = categoryId;
+        if (subCategoryId) matchFilter.subCategoryId = subCategoryId;
+
+        const stats = await StockIn.aggregate([
+            { $match: matchFilter },
+
+            {
+                $group: {
+                    _id: "$status",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // Default response
+        const result = {
+            total: 0,
+            "IN STOCK": 0,
+            "LOW STOCK": 0,
+            "OUT OF STOCK": 0
+        };
+
+        stats.forEach(item => {
+            result[item._id] = item.count;
+            result.total += item.count;
+        });
+
+        return sendSuccess(
+            res,
+            result,
+            "Stock status count fetched successfully"
+        );
+    } catch (error) {
+        console.log("❌ ERROR:", error);
+        return sendError(res, error.message);
+    }
+};
+
+
 
 export const getStockInList = async (req, res) => {
     try {
