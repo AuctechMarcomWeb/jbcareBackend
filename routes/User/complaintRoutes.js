@@ -7,6 +7,7 @@ import {
   deleteComplaint,
   getComplaintsByUserOrId,
   turnOffBuzzer,
+  getComplaintStatusCount,
 } from "../../controllers/complaintControllers.js";
 
 const router = express.Router();
@@ -21,6 +22,7 @@ router.patch("/:id", updateComplaint);
 
 // ADMIN / SUPERVISOR - Get complaints with filters & pagination
 router.get("/", getAllComplaints);
+router.get("/status-count", getComplaintStatusCount);
 
 router.delete("/:id", deleteComplaint);
 

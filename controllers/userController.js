@@ -2,6 +2,7 @@ import User from "../models/User.modal.js";
 import bcrypt from "bcryptjs";
 import Tenant from "../models/Tenant.modal.js";
 import Landlord from "../models/LandLord.modal.js";
+import Supervisor from "../models/Supervisors.modal.js";
 
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import mongoose from "mongoose";
@@ -127,6 +128,9 @@ export const getUsers = async (req, res) => {
         } else if (user.role === "tenant") {
           refDoc = await Tenant.findById(user.referenceId);
         }
+        else if (user.role === "supervisor") {
+          refDoc = await Supervisor.findById(user.referenceId);
+        }
 
         return { ...user.toObject(), referenceId: refDoc };
       })
@@ -179,6 +183,9 @@ export const getUserById = async (req, res) => {
         refDoc = await Landlord.findById(user.referenceId);
       } else if (user.role === "tenant") {
         refDoc = await Tenant.findById(user.referenceId);
+      }
+      else if (user.role === "supervisor") {
+        refDoc = await Supervisor.findById(user.referenceId);
       }
       user = user.toObject();
       user.referenceId = refDoc; // attach populated document

@@ -16,11 +16,14 @@ export const createUser = async ({
   const existing = await User.findOne({ phone });
   if (existing) throw new Error("User with this phone already exists.");
 
+
+
+
   const user = await User.create({
     name,
     email,
     phone,
-    password, // hash if your model hashes
+    password,
     role,
     referenceId,
     siteId,
