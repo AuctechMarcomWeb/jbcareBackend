@@ -38,6 +38,7 @@ import siteTypeRoutes from "./routes/masters/siteTypesRoutes.js";
 import fixElectricityChargesRoutes from "./routes/masters/FixElectricityChargesRoutes.js";
 import stockInRoutes from "./routes/Stocks/StockInRoutes.js";
 import stockOutRoutes from "./routes/Stocks/StockoutRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -87,6 +88,7 @@ app.use("/api/siteType", siteTypeRoutes);
 app.use("/api/fixElectricityCharges", fixElectricityChargesRoutes);
 app.use("/api/stockIn", stockInRoutes);
 app.use("/api/stockOut", stockOutRoutes);
+app.use("/api/notification", notificationRoutes);
 
 app.use("/api", uploadRoutes);
 

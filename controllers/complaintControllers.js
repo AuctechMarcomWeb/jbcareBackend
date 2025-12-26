@@ -10,6 +10,109 @@ import mongoose from "mongoose";
 import Unit from "../models/masters/Unit.modal.js";
 import Supervisor from "../models/Supervisors.modal.js";
 
+
+export const getComplaintStatusCount = async (req, res) => {
+  try {
+    const {
+      siteId,
+      unitId,
+      userId,
+      addedBy,
+      fromDate,
+      toDate,
+    } = req.query;
+
+    const match = {};
+
+    // ------------------------
+    // Filters
+    // ------------------------
+    if (siteId && mongoose.Types.ObjectId.isValid(siteId)) {
+      match.siteId = new mongoose.Types.ObjectId(siteId);
+    }
+
+    if (unitId && mongoose.Types.ObjectId.isValid(unitId)) {
+      match.unitId = new mongoose.Types.ObjectId(unitId);
+    }
+
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      match.userId = new mongoose.Types.ObjectId(userId);
+    }
+
+    if (addedBy) {
+      match.addedBy = addedBy;
+    }
+
+    // Date filter
+    if (fromDate || toDate) {
+      match.createdAt = {};
+      if (fromDate) match.createdAt.$gte = new Date(fromDate);
+      if (toDate) {
+        const nextDay = new Date(toDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        match.createdAt.$lt = nextDay;
+      }
+    }
+
+    // ------------------------
+    // Aggregation
+    // ------------------------
+    const result = await Complaint.aggregate([
+      { $match: match },
+
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          status: "$_id",
+          count: 1,
+        },
+      },
+    ]);
+
+    // ------------------------
+    // Convert to clean object
+    // ------------------------
+    const statusCounts = {
+      Open: 0,
+      "Review By Supervisor": 0,
+      "Raise Material Demand": 0,
+      "Work in Progress": 0,
+      "Closed By Supervisor": 0,
+      "Repush By Help Desk": 0,
+      "Closed By Help Desk": 0,
+    };
+
+    let totalComplaints = 0;
+
+    result.forEach((item) => {
+      statusCounts[item.status] = item.count;
+      totalComplaints += item.count;
+    });
+
+    return sendSuccess(res, "Status wise complaint count fetched", {
+      totalComplaints,
+      statusCounts,
+    });
+  } catch (error) {
+    console.error("Status Count Error:", error);
+    return sendError(
+      res,
+      "Failed to fetch complaint status count",
+      500,
+      error.message
+    );
+  }
+};
+
+
+
 export const createComplaint = async (req, res) => {
   try {
     const {
@@ -108,9 +211,7 @@ export const createComplaint = async (req, res) => {
   }
 };
 
-/**
- * 🔄 UPDATE COMPLAINT — status transitions + full context
- */
+
 export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
@@ -318,9 +419,7 @@ export const updateComplaint = async (req, res) => {
   }
 };
 
-/**
- * 📋 GET ALL COMPLAINTS — with filters + pagination
- */
+
 export const getAllComplaints = async (req, res) => {
   try {
     const {

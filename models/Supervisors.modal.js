@@ -11,6 +11,7 @@ const supervisorSchema = new mongoose.Schema(
     name: { type: String, required: true },
     phone: { type: String, required: true },
     email: { type: String },
+    profile: { type: String },
     verificationDocuments: [verificationDocSchema],
     siteId: {
       type: mongoose.Schema.Types.ObjectId,
