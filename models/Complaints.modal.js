@@ -97,9 +97,7 @@ const StatusHistorySchema = new Schema(
   { _id: true }
 );
 
-/**
- * 🔹 Main Complaint Schema
- */
+
 const ComplaintSchema = new Schema(
   {
     siteId: { type: Schema.Types.ObjectId, ref: "Site", required: true },
@@ -111,7 +109,7 @@ const ComplaintSchema = new Schema(
       required: true,
     },
     complaintTitle: { type: String, required: true, trim: true },
-    problemType: { type: String, required: true, trim: true },
+    problemType: { type: Schema.Types.ObjectId, ref: "ProblemType", required: true },
     complaintDescription: { type: String, required: true, trim: true },
     images: [{ type: String }],
 
