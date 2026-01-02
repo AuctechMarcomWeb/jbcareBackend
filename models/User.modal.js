@@ -50,6 +50,9 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Unit",
     },
+    fcmToken: {
+      type: String,
+    },
     resetPasswordOTP: { type: String },
     resetPasswordExpires: { type: Date },
   },
@@ -67,9 +70,9 @@ const userSchema = new mongoose.Schema(
 // });
 
 // instance method to compare passwords
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
-};
+// userSchema.methods.matchPassword = async function (enteredPassword) {
+//   return await bcrypt.compare(enteredPassword, this.password);
+// };
 
 userSchema.index({ email: 1 });
 userSchema.index({ siteId: 1 });

@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import Landlord from "../models/LandLord.modal.js";
 import Tenant from "../models/Tenant.modal.js";
+import User from "../models/User.modal.js";
 import Unit from "../models/masters/Unit.modal.js";
 import MaintainCharges from "../models/MantainCharge.modal.js";
 import FixElectricityCharges from "../models/masters/FixElectricityCharges.modal.js";
@@ -12,12 +13,12 @@ import electricityCharges from "../models/ElectricitychargesRate.modal.js";
 import Site from "../models/masters/site.modal.js";
 import PaymentLedger from "../models/paymentLedger.modal.js";
 import axios from "axios";
+import { createNotifications } from "./notificationController.js";
 
 
 
 export const createBillForAll1 = async (req, res) => {
   try {
-    console.log("============== GENERATING MONTHLY BILLS ==============");
 
     // ===============================
     // 1️⃣ LAST MONTH DATE RANGE
@@ -47,17 +48,13 @@ export const createBillForAll1 = async (req, res) => {
 
     const generatedBills = [];
 
-    console.log("Total Landlords Found:", landlords.length);
 
     // ===============================
     // 3️⃣ LOOP THROUGH LANDLORDS
     // ===============================
     for (const landlord of landlords) {
-      console.log("\n----------------------------------------");
-      console.log("Processing Landlord:", landlord._id);
 
       if (!landlord.unitIds || landlord.unitIds.length === 0) {
-        console.log("⛔ SKIPPED: No units found");
         continue;
       }
 
@@ -65,7 +62,6 @@ export const createBillForAll1 = async (req, res) => {
       // EACH UNIT
       // ===============================
       for (const unit of landlord.unitIds) {
-        console.log("  → Processing Unit:", unit._id);
 
         // ===============================
         // 4️⃣ CHECK DUPLICATE BILL
@@ -79,7 +75,6 @@ export const createBillForAll1 = async (req, res) => {
         });
 
         if (existingBill) {
-          console.log("  ⛔ SKIPPED (Duplicate Bill Exists)");
           continue;
         }
 
@@ -129,7 +124,8 @@ export const createBillForAll1 = async (req, res) => {
               dgUnits = energy.sumEnergyDG || 0;
             }
           } catch (err) {
-            console.log("⚠ API ERROR — using 0 units");
+            console.log(err);
+
           }
         }
 
@@ -236,11 +232,7 @@ export const createBillForAll1 = async (req, res) => {
           status: "Unpaid",
         });
 
-        console.log("  ✔ Bill Created:", newBill._id);
 
-        // ==========================================
-        // 1️⃣2️⃣ CREATE LEDGER ENTRY (AUTO LIKE SINGLE BILL)
-        // ==========================================
         const lastEntry = await PaymentLedger.findOne({
           landlordId: landlord._id,
           siteId: unit.siteId,
@@ -287,13 +279,9 @@ export const createBillForAll1 = async (req, res) => {
 };
 
 
-export const createBillForAll = async (req, res) => {
+export const createBillForAll1234 = async (req, res) => {
   try {
-    console.log("============== GENERATING MONTHLY BILLS ==============");
 
-    // ===============================
-    // 1️⃣ LAST MONTH DATE RANGE
-    // ===============================
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
@@ -302,8 +290,6 @@ export const createBillForAll = async (req, res) => {
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
     const daysInLastMonth = new Date(lastMonthYear, lastMonth + 1, 0).getDate();
-
-    console.log("daysInLastMonth", daysInLastMonth);
 
 
 
@@ -550,6 +536,337 @@ export const createBillForAll = async (req, res) => {
     return sendError(res, error.message);
   }
 };
+export const createBillForAll = async (req, res) => {
+  try {
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const daysInLastMonth = new Date(
+      lastMonthYear,
+      lastMonth + 1,
+      0
+    ).getDate();
+
+    const fromDate = new Date(Date.UTC(lastMonthYear, lastMonth, 1, 0, 0, 0));
+    const toDate = new Date(
+      Date.UTC(lastMonthYear, lastMonth, daysInLastMonth, 23, 59, 59)
+    );
+
+    // ===============================
+    // 2️⃣ ACTIVE LANDLORDS
+    // ===============================
+    const landlords = await Landlord.find({ isActive: true }).populate("unitIds");
+
+    if (!landlords.length) {
+      return sendError(res, "No active landlords found");
+    }
+
+    const generatedBills = [];
+
+    // ===============================
+    // 3️⃣ LOOP LANDLORDS
+    // ===============================
+    for (const landlord of landlords) {
+      if (!landlord.unitIds || !landlord.unitIds.length) continue;
+
+      for (const unit of landlord.unitIds) {
+        // ===============================
+        // 4️⃣ DUPLICATE CHECK
+        // ===============================
+        const alreadyExists = await Bills.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          fromDate,
+          toDate,
+        });
+
+        if (alreadyExists) continue;
+
+        // ===============================
+        // 5️⃣ SITE & FIX ELECTRICITY CHARGES
+        // ===============================
+        const site = await Site.findById(unit.siteId);
+
+        const fixCharge = await FixElectricityCharges.findOne({
+          siteType: site.siteType,
+          isActive: true,
+        });
+
+        const tariffRate = fixCharge?.tariffRate || 0;
+        const dgTariff = fixCharge?.dgTariff || 0;
+        const surchargePercent = fixCharge?.surchargePercent || 0;
+        const load = unit?.load || 0;
+        const fixmantance = fixCharge?.fixmantance || 0;
+        const fixLoadcharges = fixCharge?.fixLoadcharges || 0;
+
+        const fixmantanceAmount = fixmantance * load || 0;
+        const fixLoadchargesAmount =
+          fixLoadcharges * load * daysInLastMonth || 0;
+
+        // ===============================
+        // 6️⃣ ELECTRICITY API
+        // ===============================
+        let previousReading = 0,
+          currentReading = 0,
+          mainUnits = 0,
+          dgPreviousReading = 0,
+          dgCurrentReading = 0,
+          dgUnits = 0;
+
+        if (unit.customerId && unit.meterSerialNumber) {
+          try {
+            const payload = {
+              CustomerID: unit.customerId,
+              MeterSerialNumber: unit.meterSerialNumber,
+            };
+
+            const energyRes = await axios.post(
+              "http://103.245.34.54:9000/api/Dashboard/EnergyConsumption",
+              payload
+            );
+
+            const energy = energyRes?.data?.Data;
+
+            if (energy) {
+              previousReading = energy.StartingMainReadingOfMonth || 0;
+              currentReading = energy.ClosingMainsReadingOfMonth || 0;
+              mainUnits = energy.sumEnergyMain || 0;
+
+              dgPreviousReading = energy.StartDGReadingOfMonth || 0;
+              dgCurrentReading = energy.ClosingDGReadingOfMonth || 0;
+              dgUnits = energy.sumEnergyDG || 0;
+            }
+          } catch (err) {
+            console.log("⚠ Electricity API failed, units set to 0");
+          }
+        }
+
+        // ===============================
+        // 7️⃣ ELECTRICITY CALCULATION
+        // ===============================
+        const mainAmount = mainUnits * tariffRate;
+        const dgAmount = dgUnits * dgTariff;
+        const surchargeAmount = (mainAmount * surchargePercent) / 100;
+
+        const electricityTotal =
+          mainAmount +
+          dgAmount +
+          fixLoadchargesAmount +
+          fixmantanceAmount +
+          surchargeAmount;
+
+        const electricityBreakup = {
+          previousReading,
+          currentReading,
+          consumedUnits: mainUnits,
+          dgPreviousReading,
+          dgCurrentReading,
+          dgConsumedUnits: dgUnits,
+          tariffRate,
+          load,
+          dgTariff,
+          surchargePercent,
+          fixLoadcharges,
+          fixmantance,
+          fixmantanceAmount,
+          fixLoadchargesAmount,
+          electricityAmount: mainAmount,
+          dgAmount,
+          surchargeAmount,
+        };
+
+        // ===============================
+        // 8️⃣ MAINTENANCE
+        // ===============================
+        const maintain = await MaintainCharges.findOne({
+          siteId: unit.siteId,
+          unitId: unit._id,
+          isActive: true,
+        });
+
+        let maintenanceAmount = 0;
+        let maintenanceBreakup = null;
+
+        if (maintain) {
+          let baseAmount =
+            maintain.rateType === "per_sqft"
+              ? (unit.areaSqFt || 0) * maintain.rateValue
+              : maintain.rateValue;
+
+          const gstAmount =
+            (baseAmount * (maintain.gstPercent || 0)) / 100;
+
+          maintenanceAmount = baseAmount + gstAmount;
+
+          maintenanceBreakup = {
+            rateType: maintain.rateType,
+            fixedAmount:
+              maintain.rateType === "fixed" ? maintain.rateValue : 0,
+            SqftRate:
+              maintain.rateType === "per_sqft" ? maintain.rateValue : 0,
+            SqftArea:
+              maintain.rateType === "per_sqft" ? unit.areaSqFt || 0 : 0,
+            SqftAmount: baseAmount,
+            gstPercent: maintain.gstPercent,
+            maintenanceAmount,
+          };
+        }
+
+        // ===============================
+        // 9️⃣ TENANT CHECK
+        // ===============================
+        const tenant = await Tenant.findOne({
+          unitId: unit._id,
+          landlordId: landlord._id,
+          isActive: true,
+        });
+
+        let billTo = "landlord";
+        let tenantId = null;
+
+        if (tenant && tenant.billTo === "tenant") {
+          billTo = "tenant";
+          tenantId = tenant._id;
+        }
+
+        // ===============================
+        // 🔟 FINAL BILL
+        // ===============================
+        const totalAmount = electricityTotal + maintenanceAmount;
+
+        const bill = await Bills.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          tenantId,
+          billTo,
+          fromDate,
+          toDate,
+          electricity: electricityBreakup,
+          maintenance: maintenanceBreakup,
+          totalAmount,
+          lastUpdatedDate: new Date(),
+          status: "Unpaid",
+        });
+
+        // ===============================
+        // 🔔 NOTIFICATION (ONLY ADDITION)
+        // ===============================
+        try {
+          // const target =
+          //   billTo === "tenant" && tenantId
+          //     ? { userId: tenantId, userRole: "Tenant" }
+          //     : { userId: landlord._id, userRole: "Landlord" };
+
+
+          let targetUserId = null;
+          let userRole = null;
+          let fcmToken = null;
+
+
+
+          // ✅ BILL TO TENANT
+          if (billTo === "tenant" && tenantId) {
+            const tenant = await Tenant.findById(tenantId);
+            const user = await User.findById(tenant.userId);
+
+            if (!tenant || !tenant.userId) {
+              console.log("❌ Tenant userId not found");
+              return;
+            }
+
+            targetUserId = tenant.userId;
+            fcmToken = user.fcmToken;
+            userRole = "Tenant";
+          }
+
+          // ✅ BILL TO LANDLORD
+          if (billTo === "landlord" && landlord) {
+            const landlord1 = await Landlord.findById(landlord._id);
+            const user = await User.findById(landlord1.userId);
+            if (!landlord1 || !landlord1.userId) {
+              return;
+            }
+
+            targetUserId = landlord1.userId;
+            fcmToken = user.fcmToken;
+            userRole = "Landlord";
+          }
+
+          if (!targetUserId) {
+            return;
+          }
+
+
+
+          await createNotifications({
+            userId: targetUserId,
+            userRole: "user",
+            billId: bill._id,
+            complaintId: null,
+            title: "Monthly Bill Generated",
+            message: `Your bill for ${fromDate.toLocaleString("en-IN", {
+              month: "long",
+              year: "numeric",
+            })} of ₹${totalAmount} has been generated.`,
+            payload: {
+              billId: bill._id,
+              unitId: unit._id,
+              siteId: unit.siteId,
+            },
+            fcmToken: fcmToken,
+            screen: "Home",
+          });
+
+
+        } catch (err) {
+          console.log("🔕 Notification failed:", err.message);
+        }
+
+
+        const lastEntry = await PaymentLedger.findOne({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+        }).sort({ entryDate: -1 });
+
+        const openingBalance = lastEntry ? lastEntry.closingBalance : 0;
+        const closingBalance = openingBalance - totalAmount;
+
+        await PaymentLedger.create({
+          landlordId: landlord._id,
+          siteId: unit.siteId,
+          unitId: unit._id,
+          remark: "Bill Generated",
+          description: "Monthly Bill Added",
+          entryType: "Debit",
+          debitAmount: totalAmount,
+          creditAmount: 0,
+          openingBalance,
+          closingBalance,
+          entryDate: new Date(),
+        });
+
+        generatedBills.push(bill);
+      }
+    }
+
+    return sendSuccess(
+      res,
+      generatedBills,
+      "Bills & ledger generated successfully"
+    );
+  } catch (error) {
+    console.error(error);
+    return sendError(res, error.message);
+  }
+};
 
 export const updateBillStatus = async (req, res) => {
   try {
@@ -590,6 +907,9 @@ export const updateBillStatus = async (req, res) => {
     });
 
     await bill.save();
+
+
+
 
     return sendSuccess(res, bill, "Bill status updated successfully");
   } catch (error) {

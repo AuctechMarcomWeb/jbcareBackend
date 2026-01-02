@@ -9,6 +9,7 @@ import Site from "../models/masters/site.modal.js";
 import mongoose from "mongoose";
 import Unit from "../models/masters/Unit.modal.js";
 import Supervisor from "../models/Supervisors.modal.js";
+import { createNotifications } from "./notificationController.js";
 
 
 export const getComplaintStatusCount = async (req, res) => {
@@ -219,7 +220,7 @@ export const updateComplaint = async (req, res) => {
     const {
       action,
       userId,
-      userRole, // Admin / Supervisor / HelpDesk / Customer
+      userRole,
       comment,
       supervisorDetails,
       materialDemand,
@@ -236,6 +237,8 @@ export const updateComplaint = async (req, res) => {
     if (!userRole) return sendError(res, "User role is required");
 
     const complaint = await Complaint.findById(id);
+    const user = await User.findById(complaint.userId);
+
     if (!complaint) return sendError(res, "Complaint not found", 404);
 
     const currentStatus = complaint.status;
@@ -254,6 +257,53 @@ export const updateComplaint = async (req, res) => {
 
     let newStatus = actionStatusMap[action];
     if (!newStatus) return sendError(res, "Invalid action value");
+
+
+    const notificationContentByAction = {
+      review: {
+        title: "Complaint Under Review",
+        message:
+          "Your complaint is under review by the supervisor. We will update you shortly.",
+        screen: "ComplaintDetails",
+      },
+
+      raiseMaterialDemand: {
+        title: "Material Requested",
+        message:
+          "Material has been requested to resolve your complaint. Work will start soon.",
+        screen: "ComplaintDetails",
+      },
+
+      workInProgress: {
+        title: "Work in Progress",
+        message:
+          "Work has started on your complaint. Our team is actively working on it.",
+        screen: "ComplaintDetails",
+      },
+
+      resolve: {
+        title: "Complaint Resolved",
+        message:
+          "Your complaint has been resolved by the supervisor. Please verify the resolution.",
+        screen: "ComplaintDetails",
+      },
+
+      repush: {
+        title: "Complaint Reopened",
+        message:
+          "Your complaint has been repushed for further action. Our team will review it again.",
+        screen: "ComplaintDetails",
+      },
+
+      verifyResolution: {
+        title: "Complaint Closed",
+        message:
+          "Your complaint has been successfully closed by the help desk. Thank you for your patience.",
+        screen: "ComplaintDetails",
+      },
+    };
+
+
 
     // ------------------------------------------------------------
     // Allowed transition rules (based on your enum)
@@ -292,6 +342,7 @@ export const updateComplaint = async (req, res) => {
 
       "Closed By Help Desk": [], // final state
     };
+
 
     // skip if status is same
     if (currentStatus === newStatus) {
@@ -406,6 +457,36 @@ export const updateComplaint = async (req, res) => {
     // ------------------------------------------------------------
     complaint.status = newStatus;
     complaint.statusHistory.push(historyEntry);
+
+
+
+    const notificationContent =
+      notificationContentByAction[action] || {
+        title: "Complaint Updated",
+        message: "Your complaint status has been updated.",
+        screen: "Home",
+      };
+
+    await createNotifications({
+      userId: complaint.userId,
+      userRole: "User",
+      complaintId: complaint._id,
+      billId: null,
+
+      title: notificationContent.title,
+      message: notificationContent.message,
+
+      payload: {
+        complaintId: complaint._id,
+        status: newStatus,
+      },
+      fcmToken: user.fcmToken,
+      screen: "Home",
+    });
+
+
+
+
     await complaint.save();
 
     return sendSuccess(
