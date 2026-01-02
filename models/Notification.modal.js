@@ -10,9 +10,16 @@ const NotificationSchema = new Schema(
             required: true,
             index: true,
         },
+        billId: {
+            type: Schema.Types.ObjectId,
+            ref: "Bills",
+        },
+        complaintId: {
+            type: Schema.Types.ObjectId,
+            ref: "Complaint",
+        },
         userRole: {
             type: String,
-            enum: ["admin", "user", "supervisor", "landlord", "tenant"],
         },
         title: {
             type: String,

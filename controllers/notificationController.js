@@ -1,7 +1,7 @@
 import Notification from "../models/Notification.modal.js";
 import mongoose from "mongoose";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
-
+import admin from "../firebase/firebaseAdmin.js";
 
 export const createNotification = async (req, res) => {
     try {
@@ -28,6 +28,71 @@ export const createNotification = async (req, res) => {
         return sendError(res, "Failed to create notification", 500, error.message);
     }
 };
+
+export const createNotifications = async ({
+    userId,
+    userRole,
+    billId,
+    complaintId,
+    title,
+    message,
+    isRead = false,
+    payload,
+    fcmToken,
+    screen,
+}) => {
+    try {
+        if (!title || !message) {
+            throw new Error("Missing required fields: title, comment, or userId.");
+        }
+
+        const notification = new Notification({
+            userId,
+            userRole,
+            billId,
+            complaintId,
+            title,
+            message,
+            isRead,
+            payload,
+            fcmToken,
+            screen,
+
+        });
+        const savedNotification = await notification.save();
+        if (fcmToken) {
+            const message1 = {
+                notification: {
+                    title: title,
+                    body: message,
+                },
+                data: {
+                    title: title,
+                    body: message,
+                    screen: screen,
+                },
+                token: fcmToken,
+                android: {
+                    priority: "high",
+                },
+                apns: {
+                    headers: {
+                        "apns-priority": "10",
+                    },
+                },
+            };
+
+            await admin.messaging().send(message1);
+        }
+
+        return savedNotification;
+    } catch (error) {
+        console.error("Error creating notification:", error.message);
+        return null;
+    }
+};
+
+
 
 export const getAllNotifications = async (req, res) => {
     try {
