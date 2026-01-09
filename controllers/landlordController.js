@@ -519,7 +519,6 @@ export const updateLandlord = async (req, res) => {
   }
 };
 
-
 export const deleteLandlord = async (req, res) => {
   if (req?.params?.id === undefined || req?.params?.id === null) {
     return sendError(

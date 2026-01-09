@@ -57,7 +57,8 @@ const tenantSchema = new mongoose.Schema(
       number: { type: String, trim: true },
       documentUrl: { type: String }, // optional image/pdf link
     },
-
+    walletBalance: { type: Number, default: 0 },
+    creditLimit: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
     tenancyStartDate: { type: Date, default: Date.now },
     tenancyEndDate: { type: Date },

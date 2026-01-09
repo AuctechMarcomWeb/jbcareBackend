@@ -5,7 +5,10 @@ const BillsPaymentsSchema = new mongoose.Schema(
         landlordId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Landlord",
-            required: true,
+        },
+        tenantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Tenant",
         },
 
         siteId: {
