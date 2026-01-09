@@ -7,6 +7,11 @@ const LedgerSchema = new mongoose.Schema(
       ref: "Landlord",
       required: true,
     },
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+      required: true,
+    },
     siteId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Site",

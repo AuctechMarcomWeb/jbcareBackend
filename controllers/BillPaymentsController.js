@@ -231,6 +231,9 @@ export const verifyRazorpayPaymentForTenantWallet = async (req, res) => {
     }
 };
 
+
+// online lanlord payment
+
 export const payByLandlordOnline = async (req, res) => {
     try {
         const { landlordId, billId, siteId, unitId, totalAmount, payerId } = req.body;
@@ -364,6 +367,145 @@ export const verifyRazorpayPayment = async (req, res) => {
         return sendError(res, error.message);
     }
 };
+
+// online tenant payment
+
+export const payByTenantOnline = async (req, res) => {
+    try {
+        const { tenantId, billId, siteId, unitId, totalAmount, payerId } = req.body;
+
+        if (!tenantId || !siteId || !unitId || !billId || !totalAmount) {
+            return sendError(res, "Missing required fields");
+        }
+
+        // Step 0️⃣: Check if bill is already paid
+        const bill = await Bills.findById(billId);
+        if (!bill) {
+            return sendError(res, "Bill not found");
+        }
+        if (bill.status === "Paid") {
+            return sendError(res, "Bill is already paid");
+        }
+
+        // Step 1️⃣: Create pending bill payment
+        const billPayment = await BillsPayments.create({
+            tenantId,
+            siteId,
+            unitId,
+            remark: "Online Bill Payment ",
+            billId,
+            totalAmount,
+            payerId: tenantId,
+            paidBy: "Tenant",
+            status: "Pending",
+        });
+
+        // Step 2️⃣: Create Razorpay order
+        const options = {
+            amount: totalAmount * 100, // amount in paise
+            currency: "INR",
+            receipt: "receipt_" + billPayment._id,
+        };
+
+        const order = await razorpay.orders.create(options);
+
+        // Step 3️⃣: Update payment with order ID
+        billPayment.razorpayOrderId = order.id;
+        await billPayment.save();
+
+        return sendSuccess(res, { billPayment, order }, "Bill payment created & Razorpay order generated");
+    } catch (error) {
+        console.error("Error in payByTenantOnline:", error);
+        return sendError(res, error.message);
+    }
+};
+
+export const verifyRazorpayTenantPayment = async (req, res) => {
+    try {
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature, paymentId } = req.body;
+
+        if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature || !paymentId) {
+            return sendError(res, "Missing required fields");
+        }
+
+        // Step 1️⃣: Verify signature
+        const body = razorpayOrderId + "|" + razorpayPaymentId;
+        const expectedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(body)
+            .digest("hex");
+
+        if (expectedSignature !== razorpaySignature) {
+            await BillsPayments.findByIdAndUpdate(paymentId, {
+                status: "Failed",
+                razorpayOrderId,
+                razorpayPaymentId,
+                razorpaySignature,
+                lastUpdatedDate: new Date(),
+            });
+            return sendError(res, "Payment verification failed");
+        }
+
+        // Step 2️⃣: Update payment status
+        const payment = await BillsPayments.findByIdAndUpdate(
+            paymentId,
+            {
+                status: "Success",
+                razorpayOrderId,
+                razorpayPaymentId,
+                razorpaySignature,
+                paidAt: new Date(),
+                lastUpdatedDate: new Date(),
+            },
+            { new: true }
+        );
+
+        // Step 3️⃣: Update bill status
+        const bill = await Bills.findById(payment.billId);
+        if (bill) {
+            bill.status = "Paid";
+            bill.paidAt = new Date();
+            bill.paidBy = "Online";
+            bill.paymentMode = "Online";
+            bill.paymentId = razorpayPaymentId;
+            bill.payerId = payment.tenantId;
+            await bill.save();
+        }
+
+        // Step 4️⃣: Update ledger (Credit)
+        const lastLedgerEntry = await PaymentLedger.findOne({
+            tenantId: payment.tenantId,
+            siteId: payment.siteId,
+            unitId: payment.unitId,
+        }).sort({ entryDate: -1 });
+
+        const openingBalance = lastLedgerEntry ? lastLedgerEntry.closingBalance : 0;
+
+        await PaymentLedger.create({
+            tenantId: payment.tenantId,
+            siteId: payment.siteId,
+            unitId: payment.unitId,
+            remark: "Bill Paid Online",
+            description: `Payment for Bill ${bill?._id}`,
+            paymentMode: "Online",
+            entryType: "Credit",
+            debitAmount: 0,
+            creditAmount: payment.totalAmount,
+            openingBalance,
+            closingBalance: openingBalance + payment.totalAmount,
+            entryDate: new Date(),
+        });
+
+        return sendSuccess(res, { payment, bill }, "Payment verified successfully and ledger updated");
+
+    } catch (error) {
+        console.error("Error in verifyRazorpayPayment:", error);
+        return sendError(res, error.message);
+    }
+};
+
+
+
 
 export const createBillsPayment = async (req, res) => {
     try {
@@ -631,7 +773,7 @@ export const payBillFromTenantWallet = async (req, res) => {
         }
 
         // 3️⃣ Ensure bill belongs to landlord
-        if (bill.landlordId.toString() !== tenantId.toString()) {
+        if (bill.tenantId.toString() !== tenantId.toString()) {
             return res.status(400).json({
                 success: false,
                 message: "This bill does not belong to the provided landlord.",
