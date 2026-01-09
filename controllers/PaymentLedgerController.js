@@ -65,6 +65,7 @@ export const getAllLedgerEntries = async (req, res) => {
     try {
         const {
             landlordId,
+            tenantId,
             siteId,
             unitId,
             entryType,
@@ -77,6 +78,7 @@ export const getAllLedgerEntries = async (req, res) => {
 
         const filters = {};
 
+        if (tenantId) filters.tenantId = tenantId;
         if (landlordId) filters.landlordId = landlordId;
         if (siteId) filters.siteId = siteId;
         if (unitId) filters.unitId = unitId;
