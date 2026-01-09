@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 
 const PaymentLedgerSchema = new mongoose.Schema({
 
-    landlordId: { type: mongoose.Schema.Types.ObjectId, ref: "Landlord", required: true },
+    landlordId: { type: mongoose.Schema.Types.ObjectId, ref: "Landlord", },
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", },
     siteId: { type: mongoose.Schema.Types.ObjectId, ref: "Site", required: true },
     unitId: { type: mongoose.Schema.Types.ObjectId, ref: "Unit", required: true },
 

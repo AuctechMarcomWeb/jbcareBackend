@@ -2,6 +2,7 @@ import BillsPayments from "../models/BillPayments.modal.js";
 import { sendError, sendSuccess } from "../utils/responseHandler.js";
 import PaymentLedger from "../models/paymentLedger.modal.js";
 import Landlord from "../models/LandLord.modal.js";
+import Tenant from "../models/Tenant.modal.js";
 import Bills from "../models/Bills.modal.js";
 
 import Razorpay from "razorpay";
@@ -12,10 +13,7 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-
-
-
-
+// lanloard wallet add 
 
 export const addWalletPayment = async (req, res) => {
     try {
@@ -124,7 +122,114 @@ export const verifyRazorpayPaymentForWallet = async (req, res) => {
     }
 };
 
+// tenant wallet add 
 
+export const addTenantWalletPayment = async (req, res) => {
+    try {
+        const { tenantId, siteId, unitId, totalAmount } = req.body;
+
+        if (!tenantId || !siteId || !unitId || !totalAmount) {
+            return sendError(res, "Missing required fields");
+        }
+        // Step 1️⃣: Create pending bill payment
+        const billPayment = await BillsPayments.create({
+            tenantId,
+            siteId,
+            unitId,
+            remark: "Wallet Top-Up Payment",
+            totalAmount,
+            payerId: tenantId,
+            paidBy: "Tenant",
+            status: "Pending",
+        });
+
+        const options = {
+            amount: totalAmount * 100, // amount in paise
+            currency: "INR",
+            receipt: "receipt_" + billPayment._id,
+        };
+
+        const order = await razorpay.orders.create(options);
+
+        billPayment.razorpayOrderId = order.id;
+        await billPayment.save();
+
+        return sendSuccess(res, { billPayment, order }, " payment created & Razorpay order generated");
+    } catch (error) {
+        console.error("Error in payByTenantIdOnline:", error);
+        return sendError(res, error.message);
+    }
+};
+
+export const verifyRazorpayPaymentForTenantWallet = async (req, res) => {
+    try {
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature, paymentId } = req.body;
+
+        if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature || !paymentId) {
+            return sendError(res, "Missing required fields");
+        }
+
+        // Step 1️⃣: Verify signature
+        const body = razorpayOrderId + "|" + razorpayPaymentId;
+        const expectedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(body)
+            .digest("hex");
+
+        if (expectedSignature !== razorpaySignature) {
+            await BillsPayments.findByIdAndUpdate(paymentId, {
+                status: "Failed",
+                razorpayOrderId,
+                razorpayPaymentId,
+                razorpaySignature,
+                lastUpdatedDate: new Date(),
+            });
+            return sendError(res, "Payment verification failed");
+        }
+
+        // Step 2️⃣: Update payment status → Success
+        const payment = await BillsPayments.findByIdAndUpdate(
+            paymentId,
+            {
+                status: "Success",
+                razorpayOrderId,
+                razorpayPaymentId,
+                razorpaySignature,
+                paidAt: new Date(),
+                lastUpdatedDate: new Date(),
+            },
+            { new: true }
+        );
+
+        if (!payment) return sendError(res, "Payment record not found");
+
+        // 👉 Get landlord ID from payment record
+        const tenantId = payment.tenantId;
+        const amount = payment.totalAmount;
+
+        // Step 3️⃣: Add money to landlord wallet
+        const tenant = await Tenant.findById(tenantId);
+        if (!tenant) return sendError(res, "Landlord not found");
+
+        tenant.walletBalance = Number(tenant.walletBalance) + Number(amount);
+        await tenant.save();
+
+
+
+        return sendSuccess(
+            res,
+            {
+                payment,
+                newWalletBalance: tenant.walletBalance,
+            },
+            "Payment verified and wallet balance updated successfully"
+        );
+
+    } catch (error) {
+        console.error("Error in verifyRazorpayPayment:", error);
+        return sendError(res, error.message);
+    }
+};
 
 export const payByLandlordOnline = async (req, res) => {
     try {
@@ -175,7 +280,6 @@ export const payByLandlordOnline = async (req, res) => {
         return sendError(res, error.message);
     }
 };
-
 
 export const verifyRazorpayPayment = async (req, res) => {
     try {
@@ -261,7 +365,6 @@ export const verifyRazorpayPayment = async (req, res) => {
     }
 };
 
-
 export const createBillsPayment = async (req, res) => {
     try {
         const {
@@ -330,6 +433,7 @@ export const createBillsPayment = async (req, res) => {
     }
 };
 
+//  payBillFromLanlordWallet 
 
 export const payBillFromLanlordWallet = async (req, res) => {
     try {
@@ -473,6 +577,164 @@ export const payBillFromLanlordWallet = async (req, res) => {
             success: true,
             message: "Bill paid successfully using wallet.",
             walletBalance: landlord.walletBalance,
+            bill,
+            payment,
+        });
+
+    } catch (error) {
+        console.error("Wallet Payment Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error.",
+            error: error.message,
+        });
+    }
+};
+
+//  payBillFromTenantWallet 
+
+export const payBillFromTenantWallet = async (req, res) => {
+    try {
+        const { billId, tenantId, siteId, unitId, amount } = req.body;
+
+        if (!billId || !tenantId || !siteId || !unitId || !amount) {
+            return res.status(400).json({
+                success: false,
+                message: "billId, tenantId, siteId, unitId, and amount are required.",
+            });
+        }
+
+        // 1️⃣ Find tenant
+        const tenant = await Tenant.findById(tenantId);
+        if (!tenant) {
+            return res.status(404).json({
+                success: false,
+                message: "tenant not found.",
+            });
+        }
+
+        // 2️⃣ Find bill
+        const bill = await Bills.findById(billId);
+        if (!bill) {
+            return res.status(404).json({
+                success: false,
+                message: "Bill not found.",
+            });
+        }
+
+        // 🚫 NEW VALIDATION: Check if bill is already paid
+        if (bill.status === "Paid") {
+            return res.status(400).json({
+                success: false,
+                message: "Bill is already paid.",
+            });
+        }
+
+        // 3️⃣ Ensure bill belongs to landlord
+        if (bill.landlordId.toString() !== tenantId.toString()) {
+            return res.status(400).json({
+                success: false,
+                message: "This bill does not belong to the provided landlord.",
+            });
+        }
+
+        // 4️⃣ Validate site
+        if (bill.siteId.toString() !== siteId.toString()) {
+            return res.status(400).json({
+                success: false,
+                message: "Provided siteId does not match the bill's siteId.",
+            });
+        }
+
+        // 5️⃣ Validate unit
+        if (bill.unitId.toString() !== unitId.toString()) {
+            return res.status(400).json({
+                success: false,
+                message: "Provided unitId does not match the bill's unitId.",
+            });
+        }
+
+        // 6️⃣ Check wallet balance
+        if (tenant.walletBalance < amount) {
+            return res.status(400).json({
+                success: false,
+                message: "Insufficient wallet balance.",
+                walletBalance: tenant.walletBalance,
+            });
+        }
+
+        // 7️⃣ Payment amount validation
+        if (amount > bill.totalAmount) {
+            return res.status(400).json({
+                success: false,
+                message: "Amount cannot be greater than the bill total amount.",
+            });
+        }
+
+        // 8️⃣ Deduct wallet balance
+        tenant.walletBalance -= amount;
+        await tenant.save();
+
+        // 9️⃣ Update Bill Status
+        bill.status = "Paid";
+        bill.paidAt = new Date();
+        bill.paidBy = "Wallet";
+        bill.paymentMode = "Wallet";
+        bill.paymentId = "WALLET-" + Date.now();
+        bill.payerId = tenantId;
+        await bill.save();
+
+        // 🔟 Create Payment Record
+        const payment = await BillsPayments.create({
+            tenantId,
+            billId,
+            siteId,
+            unitId,
+            totalAmount: amount,
+            status: "Success",
+            paymentMode: "Wallet",
+            remark: `Bill #${billId} paid using wallet`,
+            description: "Wallet Payment",
+            paidAt: new Date(),
+            paidBy: "Wallet",
+            payerId: tenantId,
+        });
+
+        // 🧾 1️⃣1️⃣  LEDGER ENTRY
+        const lastEntry = await PaymentLedger.findOne({
+            tenantId,
+            siteId,
+            unitId,
+        }).sort({ entryDate: -1 });
+
+        const openingBalance = lastEntry ? lastEntry.closingBalance : 0;
+
+        // Wallet payment = landlord pays amount = DEBIT entry
+        const entryType = "Credit";
+        const debitAmount = 0;
+        const creditAmount = amount;
+
+        const closingBalance = openingBalance + creditAmount;
+
+        await PaymentLedger.create({
+            tenantId,
+            siteId,
+            unitId,
+            remark: `Bill #${billId} Wallet Payment`,
+            description: `Wallet payment for Bill No ${bill.billNo || billId}`,
+            paymentMode: "Wallet",
+            entryType,      // Debit
+            debitAmount,    // amount
+            creditAmount,
+            openingBalance,
+            closingBalance,
+            entryDate: new Date(),
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Bill paid successfully using wallet.",
+            walletBalance: tenant.walletBalance,
             bill,
             payment,
         });
@@ -647,10 +909,11 @@ export const payBillbyAdmin = async (req, res) => {
 
 export const getAllBillsPayments = async (req, res) => {
     try {
-        const { landlordId, siteId, unitId, status, page = 1, limit = 10 } = req.query;
+        const { landlordId, tenantId, siteId, unitId, status, page = 1, limit = 10 } = req.query;
 
         const filters = {};
 
+        if (tenantId) filters.tenantId = tenantId;
         if (landlordId) filters.landlordId = landlordId;
         if (siteId) filters.siteId = siteId;
         if (unitId) filters.unitId = unitId;
@@ -659,7 +922,7 @@ export const getAllBillsPayments = async (req, res) => {
         const skip = (page - 1) * limit;
 
         const payments = await BillsPayments.find(filters)
-            .populate("landlordId siteId unitId payerId")
+            .populate("landlordId siteId unitId payerId tenantId")
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(Number(limit));
@@ -678,7 +941,7 @@ export const getBillsPaymentById = async (req, res) => {
         const { paymentId } = req.params;
 
         const payment = await BillsPayments.findById(paymentId).populate(
-            "landlordId siteId unitId payerId"
+            "landlordId siteId unitId payerId tenantId"
         );
 
         if (!payment) return sendError(res, "Payment not found");

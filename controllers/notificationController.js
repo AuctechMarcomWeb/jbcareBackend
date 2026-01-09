@@ -92,8 +92,6 @@ export const createNotifications = async ({
     }
 };
 
-
-
 export const getAllNotifications = async (req, res) => {
     try {
         const {
