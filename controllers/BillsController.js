@@ -759,10 +759,6 @@ export const createBillForAll = async (req, res) => {
         // 🔔 NOTIFICATION (ONLY ADDITION)
         // ===============================
         try {
-          // const target =
-          //   billTo === "tenant" && tenantId
-          //     ? { userId: tenantId, userRole: "Tenant" }
-          //     : { userId: landlord._id, userRole: "Landlord" };
 
 
           let targetUserId = null;
@@ -829,29 +825,62 @@ export const createBillForAll = async (req, res) => {
           console.log("🔕 Notification failed:", err.message);
         }
 
+        if (tenant && tenant.billTo === "tenant") {
 
-        const lastEntry = await PaymentLedger.findOne({
-          landlordId: landlord._id,
-          siteId: unit.siteId,
-          unitId: unit._id,
-        }).sort({ entryDate: -1 });
 
-        const openingBalance = lastEntry ? lastEntry.closingBalance : 0;
-        const closingBalance = openingBalance - totalAmount;
+          const lastEntry = await PaymentLedger.findOne({
+            tenantId: tenant._id,
+            siteId: unit.siteId,
+            unitId: unit._id,
+          }).sort({ entryDate: -1 });
+          const openingBalance = lastEntry ? lastEntry.closingBalance : 0;
+          const closingBalance = openingBalance - totalAmount;
 
-        await PaymentLedger.create({
-          landlordId: landlord._id,
-          siteId: unit.siteId,
-          unitId: unit._id,
-          remark: "Bill Generated",
-          description: "Monthly Bill Added",
-          entryType: "Debit",
-          debitAmount: totalAmount,
-          creditAmount: 0,
-          openingBalance,
-          closingBalance,
-          entryDate: new Date(),
-        });
+          await PaymentLedger.create({
+            tenantId: tenant._id,
+            siteId: unit.siteId,
+            unitId: unit._id,
+            remark: "Bill Generated",
+            description: "Monthly Bill Added",
+            entryType: "Debit",
+            debitAmount: totalAmount,
+            creditAmount: 0,
+            openingBalance,
+            closingBalance,
+            entryDate: new Date(),
+          });
+
+        } else {
+
+
+          const lastEntry = await PaymentLedger.findOne({
+            landlordId: landlord._id,
+            siteId: unit.siteId,
+            unitId: unit._id,
+          }).sort({ entryDate: -1 });
+
+          const openingBalance = lastEntry ? lastEntry.closingBalance : 0;
+          const closingBalance = openingBalance - totalAmount;
+
+          await PaymentLedger.create({
+            landlordId: landlord._id,
+            siteId: unit.siteId,
+            unitId: unit._id,
+            remark: "Bill Generated",
+            description: "Monthly Bill Added",
+            entryType: "Debit",
+            debitAmount: totalAmount,
+            creditAmount: 0,
+            openingBalance,
+            closingBalance,
+            entryDate: new Date(),
+          });
+        }
+
+
+
+
+
 
         generatedBills.push(bill);
       }
