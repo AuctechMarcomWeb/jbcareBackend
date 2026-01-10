@@ -799,7 +799,11 @@ export const createBillForAll = async (req, res) => {
             return;
           }
 
-
+          const formattedAmount = new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency: "INR",
+            minimumFractionDigits: 2,
+          }).format(totalAmount);
 
           await createNotifications({
             userId: targetUserId,
@@ -810,7 +814,7 @@ export const createBillForAll = async (req, res) => {
             message: `Your bill for ${fromDate.toLocaleString("en-IN", {
               month: "long",
               year: "numeric",
-            })} of ₹${totalAmount} has been generated.`,
+            })} of ${formattedAmount} has been generated.`,
             payload: {
               billId: bill._id,
               unitId: unit._id,
