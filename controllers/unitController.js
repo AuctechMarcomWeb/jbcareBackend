@@ -121,6 +121,7 @@ export const getAllUnits = async (req, res) => {
       })
       .populate("unitTypeId", "title")
       .populate("landlordId", "name phone email")
+      .populate("tenantId",)
       .populate({
         path: "landlordHistory.landlordId",
         select: "name phone email",
