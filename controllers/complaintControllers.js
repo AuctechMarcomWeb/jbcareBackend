@@ -636,6 +636,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
     if (complaintId) {
       const complaint = await Complaint.findById(complaintId)
         .populate("userId", "name email role")
+        .populate("problemType")
         .populate({
           path: "statusHistory.supervisorDetails.supervisorId",
           select: "name email phone", // optional, select desired fields
@@ -681,6 +682,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
     // 🔹 Query setup
     let query = Complaint.find(match)
       .populate("userId", "name email role")
+      .populate("problemType")
       .populate({
         path: "statusHistory.supervisorDetails.supervisorId",
         select: "name email phone", // optional, select desired fields
