@@ -99,6 +99,7 @@ export const getAllLedgerEntries = async (req, res) => {
 
         const entries = await PaymentLedger.find(filters)
             .populate("landlordId", "name")
+            .populate("tenantId",)
             .populate("siteId", "siteName")
             .populate("unitId", "unitNumber")
             .sort({ entryDate: -1 })
