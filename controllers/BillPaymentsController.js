@@ -460,6 +460,9 @@ export const verifyRazorpayTenantPayment = async (req, res) => {
             { new: true }
         );
 
+        console.log("payment", payment);
+
+
         // Step 3️⃣: Update bill status
         const bill = await Bills.findById(payment.billId);
         if (bill) {
