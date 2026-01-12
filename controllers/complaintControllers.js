@@ -119,6 +119,7 @@ export const createComplaint = async (req, res) => {
     const {
       siteId,
       projectId,
+      otherproblemType,
       unitId,
       userId,
       addedBy,
@@ -191,6 +192,7 @@ export const createComplaint = async (req, res) => {
       userId,
       addedBy,
       complaintTitle,
+      otherproblemType,
       complaintDescription,
       problemType,
       images,
@@ -221,6 +223,7 @@ export const updateComplaint = async (req, res) => {
       action,
       userId,
       userRole,
+      otherproblemType,
       comment,
       supervisorDetails,
       materialDemand,
