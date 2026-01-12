@@ -110,6 +110,7 @@ const ComplaintSchema = new Schema(
     },
     complaintTitle: { type: String, required: true, trim: true },
     problemType: { type: Schema.Types.ObjectId, ref: "ProblemType", required: true },
+    otherproblemType: { type: String },
     complaintDescription: { type: String, required: true, trim: true },
     images: [{ type: String }],
 
