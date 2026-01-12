@@ -750,7 +750,7 @@ export const createBillForAll = async (req, res) => {
           toDate,
           electricity: electricityBreakup,
           maintenance: maintenanceBreakup,
-          totalAmount,
+          totalAmount: Math.round(totalAmount),
           lastUpdatedDate: new Date(),
           status: "Unpaid",
         });
