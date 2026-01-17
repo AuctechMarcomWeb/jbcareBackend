@@ -11,17 +11,9 @@ import Unit from "../models/masters/Unit.modal.js";
 import Supervisor from "../models/Supervisors.modal.js";
 import { createNotifications } from "./notificationController.js";
 
-
 export const getComplaintStatusCount = async (req, res) => {
   try {
-    const {
-      siteId,
-      unitId,
-      userId,
-      addedBy,
-      fromDate,
-      toDate,
-    } = req.query;
+    const { siteId, unitId, userId, addedBy, fromDate, toDate } = req.query;
 
     const match = {};
 
@@ -107,12 +99,10 @@ export const getComplaintStatusCount = async (req, res) => {
       res,
       "Failed to fetch complaint status count",
       500,
-      error.message
+      error.message,
     );
   }
 };
-
-
 
 export const createComplaint = async (req, res) => {
   try {
@@ -138,7 +128,7 @@ export const createComplaint = async (req, res) => {
       return sendError(
         res,
         "addedBy (Landlord, Tenant, or Admin) is required",
-        400
+        400,
       );
 
     // 🔹 Validate ObjectIds
@@ -180,7 +170,7 @@ export const createComplaint = async (req, res) => {
       return sendError(
         res,
         "Unit is not correctly linked with the given Site and Project",
-        400
+        400,
       );
     }
 
@@ -213,7 +203,6 @@ export const createComplaint = async (req, res) => {
     return sendError(res, "Failed to create complaint", 500, error.message);
   }
 };
-
 
 export const updateComplaint = async (req, res) => {
   try {
@@ -261,7 +250,6 @@ export const updateComplaint = async (req, res) => {
     let newStatus = actionStatusMap[action];
     if (!newStatus) return sendError(res, "Invalid action value");
 
-
     const notificationContentByAction = {
       review: {
         title: "Complaint Under Review",
@@ -306,8 +294,6 @@ export const updateComplaint = async (req, res) => {
       },
     };
 
-
-
     // ------------------------------------------------------------
     // Allowed transition rules (based on your enum)
     // ------------------------------------------------------------
@@ -346,7 +332,6 @@ export const updateComplaint = async (req, res) => {
       "Closed By Help Desk": [], // final state
     };
 
-
     // skip if status is same
     if (currentStatus === newStatus) {
       return sendSuccess(res, `Already in '${newStatus}'`, complaint);
@@ -355,7 +340,7 @@ export const updateComplaint = async (req, res) => {
     if (!allowedTransitions[currentStatus]?.includes(newStatus)) {
       return sendError(
         res,
-        `Invalid transition: '${currentStatus}' → '${newStatus}'`
+        `Invalid transition: '${currentStatus}' → '${newStatus}'`,
       );
     }
 
@@ -385,7 +370,7 @@ export const updateComplaint = async (req, res) => {
         }
 
         const supervisor = await Supervisor.findById(
-          supervisorDetails.supervisorId
+          supervisorDetails.supervisorId,
         );
         if (!supervisor) return sendError(res, "Supervisor not found", 404);
 
@@ -413,7 +398,7 @@ export const updateComplaint = async (req, res) => {
       // Detect if input is ObjectId
       if (mongoose.Types.ObjectId.isValid(materialDemand.materialName)) {
         req.body.materialName = new mongoose.Types.ObjectId(
-          materialDemand.materialName
+          materialDemand.materialName,
         );
       }
       historyEntry.materialDemand = materialDemand;
@@ -461,14 +446,11 @@ export const updateComplaint = async (req, res) => {
     complaint.status = newStatus;
     complaint.statusHistory.push(historyEntry);
 
-
-
-    const notificationContent =
-      notificationContentByAction[action] || {
-        title: "Complaint Updated",
-        message: "Your complaint status has been updated.",
-        screen: "Home",
-      };
+    const notificationContent = notificationContentByAction[action] || {
+      title: "Complaint Updated",
+      message: "Your complaint status has been updated.",
+      screen: "Home",
+    };
 
     await createNotifications({
       userId: complaint.userId,
@@ -487,22 +469,18 @@ export const updateComplaint = async (req, res) => {
       screen: "Home",
     });
 
-
-
-
     await complaint.save();
 
     return sendSuccess(
       res,
       `Complaint updated successfully (${newStatus})`,
-      complaint
+      complaint,
     );
   } catch (error) {
     console.error("Update Complaint Error:", error);
     return sendError(res, "Failed to update complaint", 500, error.message);
   }
 };
-
 
 export const getAllComplaints = async (req, res) => {
   try {
@@ -566,7 +544,6 @@ export const getAllComplaints = async (req, res) => {
       .populate("unitId", "unitType unitNumber")
       .populate("statusHistory.materialDemand.materialName")
       .populate("statusHistory.materialDemand.category")
-      .populate("statusHistory.materialDemand.subCategory")
       .sort({ createdAt: -1 });
 
     const total = await Complaint.countDocuments(match);
@@ -612,7 +589,6 @@ export const deleteComplaint = async (req, res) => {
   }
 };
 
-
 export const getComplaintsByUserOrId = async (req, res) => {
   try {
     const { userId, complaintId } = req.params;
@@ -630,7 +606,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
       return sendSuccess(
         res,
         "Please provide either userId or complaintId",
-        400
+        400,
       );
 
     let match = {};
@@ -713,7 +689,7 @@ export const getComplaintsByUserOrId = async (req, res) => {
         res,
         "No complaints found for this user",
         complaints,
-        200
+        200,
       );
 
     return sendSuccess(res, "Complaints fetched successfully", {
@@ -790,7 +766,7 @@ export const turnOffBuzzer = async (req, res) => {
           "buzzer.autoTriggerAt": null,
         },
       },
-      { new: true }
+      { new: true },
     );
 
     return res.json({

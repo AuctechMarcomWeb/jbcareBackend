@@ -11,7 +11,7 @@ const SupervisorDetailsSchema = new Schema(
     comments: { type: String, trim: true },
     images: [{ type: String }],
   },
-  { _id: false }
+  { _id: false },
 );
 
 /**
@@ -19,14 +19,18 @@ const SupervisorDetailsSchema = new Schema(
  */
 const MaterialDemandSchema = new Schema(
   {
-    materialName: { type: Schema.Types.ObjectId, required: true, ref: 'StockIn' },
-    category: { type: Schema.Types.ObjectId, ref: 'Category' },
-    subCategory: { type: Schema.Types.ObjectId, ref: 'SubCategory' },
+    materialName: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      ref: "StockIn",
+    },
+    category: { type: Schema.Types.ObjectId, ref: "Category" },
+    brandName: String,
     quantity: { type: String, required: true, trim: true },
     reason: { type: String, trim: true },
     images: [{ type: String }],
   },
-  { _id: false }
+  { _id: false },
 );
 
 /**
@@ -39,7 +43,7 @@ const ResolutionSchema = new Schema(
     images: [{ type: String }],
     resolvedAt: { type: Date, default: Date.now },
   },
-  { _id: false }
+  { _id: false },
 );
 const ClosureDetailsSchema = new Schema(
   {
@@ -48,7 +52,7 @@ const ClosureDetailsSchema = new Schema(
     images: [{ type: String }],
     closedAt: { type: Date, default: Date.now },
   },
-  { _id: false }
+  { _id: false },
 );
 /**
  * 🔹 Sub-schema for repush details
@@ -59,7 +63,7 @@ const RepushedDetailsSchema = new Schema(
     reason: { type: String, trim: true },
     repushedAt: { type: Date, default: Date.now },
   },
-  { _id: false }
+  { _id: false },
 );
 
 /**
@@ -94,9 +98,8 @@ const StatusHistorySchema = new Schema(
     repushedDetails: RepushedDetailsSchema,
     updatedAt: { type: Date, default: Date.now },
   },
-  { _id: true }
+  { _id: true },
 );
-
 
 const ComplaintSchema = new Schema(
   {
@@ -109,7 +112,11 @@ const ComplaintSchema = new Schema(
       required: true,
     },
     complaintTitle: { type: String, required: true, trim: true },
-    problemType: { type: Schema.Types.ObjectId, ref: "ProblemType", required: true },
+    problemType: {
+      type: Schema.Types.ObjectId,
+      ref: "ProblemType",
+      required: true,
+    },
     otherproblemType: { type: String },
     complaintDescription: { type: String, required: true, trim: true },
     images: [{ type: String }],
@@ -137,7 +144,7 @@ const ComplaintSchema = new Schema(
       disabledByUser: { type: Boolean, default: false }, // user manually stopped buzzer
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const Complaint =
