@@ -414,10 +414,10 @@ export const updateComplaint = async (req, res) => {
     /**
      * 4) CLOSED BY SUPERVISOR
      */
-    if (action === "closeBySupervisor") {
-      if (!closureDetails) return sendError(res, "Closure details required");
+    if (action === "resolve") {
+      if (!resolution) return sendError(res, "Closure details required");
 
-      historyEntry.closureDetails = closureDetails;
+      historyEntry.resolution = resolution;
     }
 
     /**
@@ -434,7 +434,7 @@ export const updateComplaint = async (req, res) => {
     /**
      * 6) CLOSED BY HELP DESK
      */
-    if (action === "closeByHelpDesk") {
+    if (action === "verifyResolution") {
       if (!closureDetails) return sendError(res, "Closure details required");
 
       historyEntry.closureDetails = closureDetails;
