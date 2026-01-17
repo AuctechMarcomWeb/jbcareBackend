@@ -1110,7 +1110,7 @@ export const getAllBills = async (req, res) => {
       .populate("landlordId", "name meterSerialNumber meterId customerId")
       .populate("tenantId", "name")
       .populate("siteId", "siteName siteType")
-      .populate("unitId", "unitNumber")
+      .populate("unitId", "unitNumber meterSerialNumber")
       .sort({ fromDate: -1 }) // 👈 sorted by billing period
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum);
