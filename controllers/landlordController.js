@@ -55,7 +55,7 @@ export const addLandlord = async (req, res) => {
       return sendError(
         res,
         `Missing required field(s): ${missingFields.join(", ")}`,
-        400
+        400,
       );
     }
 
@@ -74,7 +74,6 @@ export const addLandlord = async (req, res) => {
     // 🔍 DUPLICATE CHECK — LANDLORD
     // -----------------------------
     const existingLandlord = await Landlord.findOne({
-
       isActive: true,
       $or: [{ phone }, ...(email ? [{ email }] : [])],
     });
@@ -83,7 +82,7 @@ export const addLandlord = async (req, res) => {
       return sendError(
         res,
         "Active landlord with this phone or email already exists",
-        409
+        409,
       );
     }
 
@@ -98,14 +97,14 @@ export const addLandlord = async (req, res) => {
       return sendError(
         res,
         "User with this phone or email already exists",
-        409
+        409,
       );
     }
 
     // -----------------------------
     // 🏘️ UNIT VALIDATION
     // -----------------------------
-    const uniqueUnitIds = [...new Set(unitIds.map(id => id.toString()))];
+    const uniqueUnitIds = [...new Set(unitIds.map((id) => id.toString()))];
     if (uniqueUnitIds.length !== unitIds.length) {
       return sendError(res, "Duplicate unitIds are not allowed", 400);
     }
@@ -133,7 +132,7 @@ export const addLandlord = async (req, res) => {
         return sendError(
           res,
           "Opening balance type must be Debit or Credit",
-          400
+          400,
         );
       }
     }
@@ -187,10 +186,10 @@ export const addLandlord = async (req, res) => {
           ?.slice()
           .reverse()
           .find(
-            h =>
+            (h) =>
               h.landlordId?.toString() === previousLandlord._id.toString() &&
               h.isActive &&
-              !h.endDate
+              !h.endDate,
           );
 
         if (lastActive) {
@@ -217,7 +216,6 @@ export const addLandlord = async (req, res) => {
     // 👤 CREATE USER
     // -----------------------------
     const password = `${landlord.name.substring(0, 3).toLowerCase()}@123`;
-
 
     const createdUser = await createUser({
       name: landlord.name,
@@ -288,9 +286,10 @@ export const getLandlords = async (req, res) => {
       isActive,
       fromDate,
       toDate,
-      order = "desc", // 🔹 optional: "asc" or "desc"
+      order = "desc",
       page = 1,
       limit = 10,
+      isPagination = "true", // ✅ default true
     } = req.query;
 
     const query = {};
@@ -298,11 +297,13 @@ export const getLandlords = async (req, res) => {
     // ✅ Handle null/undefined safely
     if (siteId && siteId !== "null" && siteId !== "undefined")
       query.siteId = siteId;
+
     if (projectId && projectId !== "null" && projectId !== "undefined")
       query.projectId = projectId;
 
     if (isActive !== undefined) query.isActive = isActive === "true";
 
+    // 🔍 Search
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -311,32 +312,38 @@ export const getLandlords = async (req, res) => {
       ];
     }
 
-    // 🔍 Filter by specific unitId
+    // 🔍 Filter by unitId
     if (unitId && unitId !== "null" && unitId !== "undefined") {
       query.unitIds = { $in: [new mongoose.Types.ObjectId(unitId)] };
     }
 
-    // 📅 Filter by Date Range (createdAt)
+    // 📅 Date range filter
     if (fromDate || toDate) {
       query.createdAt = {};
       if (fromDate) query.createdAt.$gte = new Date(fromDate);
       if (toDate) {
-        // Include entire day till 23:59:59
         const endOfDay = new Date(toDate);
         endOfDay.setHours(23, 59, 59, 999);
         query.createdAt.$lte = endOfDay;
       }
     }
 
-    // 🧾 Sort order (latest first by default)
+    // 🧾 Sorting
     const sortOrder = order === "asc" ? 1 : -1;
 
-    const landlords = await Landlord.find(query)
+    // ✅ Base query
+    let landlordQuery = Landlord.find(query)
       .populate("siteId unitIds")
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
       .sort({ createdAt: sortOrder });
 
+    // ✅ Apply pagination only if isPagination === "true"
+    if (isPagination === "true") {
+      landlordQuery = landlordQuery
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit));
+    }
+
+    const landlords = await landlordQuery;
     const total = await Landlord.countDocuments(query);
 
     return sendSuccess(
@@ -347,10 +354,10 @@ export const getLandlords = async (req, res) => {
       {
         data: landlords,
         total,
-        page: Number(page),
-        limit: Number(limit),
+        page: isPagination === "true" ? Number(page) : null,
+        limit: isPagination === "true" ? Number(limit) : null,
       },
-      200
+      200,
     );
   } catch (err) {
     console.error("Get Landlords Error:", err);
@@ -388,7 +395,7 @@ export const updateLandlordStatus = async (req, res) => {
           unitIds: { $in: unitIds },
           _id: { $ne: landlordId },
         },
-        { $set: { isActive: false } }
+        { $set: { isActive: false } },
       );
 
       // Activate current landlord
@@ -433,7 +440,7 @@ export const updateLandlordStatus = async (req, res) => {
 
       // update history
       const activeEntry = unitData.landlordHistory.find(
-        (h) => h.landlordId.toString() === landlordId && h.isActive === true
+        (h) => h.landlordId.toString() === landlordId && h.isActive === true,
       );
 
       if (activeEntry) {
@@ -445,7 +452,6 @@ export const updateLandlordStatus = async (req, res) => {
     }
 
     return sendSuccess(res, "Landlord deactivated successfully", landlord);
-
   } catch (error) {
     console.error(error);
     return sendError(res, "Server Error", 500, error.message);
@@ -458,12 +464,12 @@ export const getLandlordById = async (req, res) => {
       res,
       "Landlord ID is required",
       400,
-      "Landlord ID is missing"
+      "Landlord ID is missing",
     );
   }
   try {
     const landlord = await Landlord.findById(req.params.id).populate(
-      "siteId unitIds"
+      "siteId unitIds",
     );
     if (!landlord) return sendError(res, "Landlord not found.", 404);
 
@@ -480,7 +486,7 @@ export const updateLandlord = async (req, res) => {
       res,
       "Landlord ID is required",
       400,
-      "Landlord ID is missing"
+      "Landlord ID is missing",
     );
   }
 
@@ -504,14 +510,14 @@ export const updateLandlord = async (req, res) => {
     const updatedLandlord = await Landlord.findByIdAndUpdate(
       landlordId,
       updates,
-      { new: true }
+      { new: true },
     );
 
     return sendSuccess(
       res,
       "Landlord updated successfully.",
       updatedLandlord,
-      200
+      200,
     );
   } catch (err) {
     console.error("Update Landlord Error:", err);
@@ -525,7 +531,7 @@ export const deleteLandlord = async (req, res) => {
       res,
       "Landlord ID is required",
       400,
-      "Landlord ID is missing"
+      "Landlord ID is missing",
     );
   }
 
@@ -548,7 +554,7 @@ export const deleteLandlord = async (req, res) => {
           (h) =>
             h.landlordId?.toString?.() === landlord._id.toString() &&
             h.isActive === true &&
-            !h.endDate
+            !h.endDate,
         );
 
       if (lastActive) {
