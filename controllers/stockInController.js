@@ -224,6 +224,92 @@ export const getStockInList = async (req, res) => {
   }
 };
 
+export const getStockSummary = async (req, res) => {
+  try {
+    const { siteId, productName, categoryId, subCategoryId } = req.query;
+
+    const matchStage = { isDeleted: false };
+
+    if (siteId) matchStage.siteId = new mongoose.Types.ObjectId(siteId);
+    if (productName?.trim())
+      matchStage.productName = { $regex: productName, $options: "i" };
+    if (categoryId)
+      matchStage.categoryId = new mongoose.Types.ObjectId(categoryId);
+    if (subCategoryId)
+      matchStage.subCategoryId = new mongoose.Types.ObjectId(subCategoryId);
+
+    const result = await StockIn.aggregate([
+      { $match: matchStage },
+
+      /* ---------- GROUP WITHOUT UNWIND ---------- */
+      {
+        $group: {
+          _id: {
+            siteId: "$siteId",
+            productName: "$productName",
+          },
+
+          totalStockIn: { $sum: "$quantity" },
+
+          totalStockOut: {
+            $sum: {
+              $reduce: {
+                input: { $ifNull: ["$stockout", []] },
+                initialValue: 0,
+                in: { $add: ["$$value", "$$this.quantity"] },
+              },
+            },
+          },
+
+          lowStockLimit: { $first: "$lowStockLimit" },
+        },
+      },
+
+      /* ---------- SITE LOOKUP ---------- */
+      {
+        $lookup: {
+          from: "sites",
+          localField: "_id.siteId",
+          foreignField: "_id",
+          as: "site",
+        },
+      },
+      { $unwind: "$site" },
+
+      {
+        $project: {
+          _id: 0,
+          site: {
+            _id: "$site._id",
+            name: "$site.siteName",
+            location: "$site.siteType",
+          },
+          productName: "$_id.productName",
+          totalStockIn: 1,
+          totalStockOut: 1,
+          currentStock: 1,
+          lowStockLimit: 1,
+        },
+      },
+
+      { $sort: { productName: 1 } },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      count: result.length,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Stock Summary Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+
 export const updateStockIn = async (req, res) => {
   try {
     const { id } = req.params;
