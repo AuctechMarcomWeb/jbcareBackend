@@ -9,7 +9,6 @@ export const createStockIn = async (req, res) => {
   try {
     const {
       categoryId,
-      // subCategoryId,
       brandName,
       productName,
       productLocation,
@@ -39,9 +38,6 @@ export const createStockIn = async (req, res) => {
     const category = await Category.findById(categoryId);
     if (!category) return sendError(res, "Category not found");
 
-    // const subCategory = await SubCategory.findById(subCategoryId);
-    // if (!subCategory) return sendError(res, "SubCategory not found");
-
     const site = await Site.findById(siteId);
     if (!site) return sendError(res, "Site not found");
 
@@ -57,20 +53,53 @@ export const createStockIn = async (req, res) => {
       return sendError(res, "Product name must be at least 2 characters");
     }
 
-    const stock = await StockIn.create({
+    let stock = await StockIn.findOne({
       categoryId,
-      // subCategoryId,
-      brandName,
       productName,
-      productLocation,
-      unit,
-      lowStockLimit,
       siteId,
-      quantity,
-      newStockReceivedDate,
-      receivedBy,
-      isDefective,
+      isDeleted: false,
     });
+
+    if (stock) {
+      // ✅ Update quantity only
+      stock.quantity += quantity;
+
+      // ✅ Push stock-in history (with brandName)
+      stock.stockin.push({
+        quantity,
+        receivedBy,
+        isDefective,
+        brandName,
+      });
+
+      // 🔄 Status update
+      if (stock.quantity === 0) stock.status = "OUT OF STOCK";
+      else if (stock.quantity <= stock.lowStockLimit)
+        stock.status = "LOW STOCK";
+      else stock.status = "IN STOCK";
+
+      await stock.save();
+    } else {
+      // 🆕 Create new product (brandName stored once)
+      stock = await StockIn.create({
+        categoryId,
+        brandName, // first-time brand
+        productName,
+        productLocation,
+        unit,
+        lowStockLimit,
+        siteId,
+        quantity,
+        stockin: [
+          {
+            quantity,
+            receivedBy,
+            isDefective,
+            brandName,
+          },
+        ],
+      });
+    }
 
     return sendSuccess(res, stock, "Stock created successfully");
   } catch (error) {
@@ -308,7 +337,6 @@ export const getStockSummary = async (req, res) => {
     });
   }
 };
-
 
 export const updateStockIn = async (req, res) => {
   try {

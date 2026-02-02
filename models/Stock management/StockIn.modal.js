@@ -83,6 +83,17 @@ const StockInSchema = new mongoose.Schema(
         date: { type: Date },
       },
     ],
+    // 🔹 STOCK-IN HISTORY
+    stockin: [
+      {
+        quantity: { type: Number, required: true },
+        receivedBy: { type: String, trim: true },
+        brandName: String,
+        receivedDate: { type: Date, default: Date.now },
+        isDefective: { type: Boolean, default: false },
+        remark: { type: String, trim: true },
+      },
+    ],
   },
   { timestamps: true },
 );
@@ -91,6 +102,14 @@ const StockInSchema = new mongoose.Schema(
 StockInSchema.index({ productName: 1 });
 StockInSchema.index({ newStockReceivedDate: 1 });
 StockInSchema.index({ lastUpdatedDate: 1 });
+StockInSchema.index(
+  {
+    categoryId: 1,
+    siteId: 1,
+    productName: 1,
+  },
+  { unique: true },
+);
 
 const StockIn = mongoose.model("StockIn", StockInSchema);
 export default StockIn;
