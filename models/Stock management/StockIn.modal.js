@@ -110,6 +110,45 @@ StockInSchema.index(
   },
   { unique: true },
 );
+StockInSchema.pre("save", function (next) {
+  if (this.quantity <= 0) {
+    this.status = "OUT OF STOCK";
+  } else if (this.quantity <= this.lowStockLimit) {
+    this.status = "LOW STOCK";
+  } else {
+    this.status = "IN STOCK";
+  }
+
+  this.lastUpdatedDate = new Date();
+  next();
+});
+StockInSchema.pre("findOneAndUpdate", async function (next) {
+  const update = this.getUpdate();
+
+  // Get updated values or fallback to existing document
+  const doc = await this.model.findOne(this.getQuery());
+
+  const quantity = update.quantity ?? update.$set?.quantity ?? doc.quantity;
+
+  const lowStockLimit =
+    update.lowStockLimit ?? update.$set?.lowStockLimit ?? doc.lowStockLimit;
+
+  let status = "IN STOCK";
+
+  if (quantity <= 0) {
+    status = "OUT OF STOCK";
+  } else if (quantity <= lowStockLimit) {
+    status = "LOW STOCK";
+  }
+
+  // Force update status + lastUpdatedDate
+  this.set({
+    status,
+    lastUpdatedDate: new Date(),
+  });
+
+  next();
+});
 
 const StockIn = mongoose.model("StockIn", StockInSchema);
 export default StockIn;

@@ -114,8 +114,9 @@ export const getStockInCountStats = async (req, res) => {
 
     const matchFilter = { isDeleted: false };
 
-    if (siteId) matchFilter.siteId = siteId;
-    if (categoryId) matchFilter.categoryId = categoryId;
+    if (siteId) matchFilter.siteId = new mongoose.Types.ObjectId(siteId);
+    if (categoryId)
+      matchFilter.categoryId = new mongoose.Types.ObjectId(categoryId);
     if (brandName) matchFilter.brandName = brandName;
 
     const stats = await StockIn.aggregate([
@@ -129,7 +130,7 @@ export const getStockInCountStats = async (req, res) => {
       },
     ]);
 
-    // Default response
+    // ✅ Default response (always same keys)
     const result = {
       total: 0,
       "IN STOCK": 0,
@@ -138,8 +139,10 @@ export const getStockInCountStats = async (req, res) => {
     };
 
     stats.forEach((item) => {
-      result[item._id] = item.count;
-      result.total += item.count;
+      if (result[item._id] !== undefined) {
+        result[item._id] = item.count;
+        result.total += item.count;
+      }
     });
 
     return sendSuccess(res, result, "Stock status count fetched successfully");
