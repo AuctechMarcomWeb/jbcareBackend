@@ -256,6 +256,303 @@ export const getStockInList = async (req, res) => {
   }
 };
 
+
+
+export const getDateWiseStockIn1 = async (req, res) => {
+  try {
+    const {
+      search,
+      siteId,
+      status,
+      categoryId,
+      brandName,
+      fromDate,
+      toDate,
+      page = 1,
+      limit = 10,
+      isPagination = "true",
+    } = req.query;
+
+    const filter = { isDeleted: false };
+
+    if (search) filter.productName = { $regex: search, $options: "i" };
+    if (siteId) filter.siteId = siteId;
+    if (categoryId) filter.categoryId = categoryId;
+    if (brandName) filter.brandName = brandName;
+    if (status) filter.status = status;
+
+    let dateFilter = {};
+
+    if (fromDate || toDate) {
+      const start = fromDate ? new Date(fromDate) : new Date("1970-01-01");
+      const end = toDate ? new Date(toDate) : new Date();
+      end.setHours(23, 59, 59, 999);
+
+      dateFilter = {
+        "stockin.receivedDate": {
+          $gte: start,
+          $lte: end,
+        },
+      };
+    }
+
+    // -----------------------------
+    // 🚀 Aggregation Pipeline
+    // -----------------------------
+    const pipeline = [
+      {
+        $match: {
+          ...filter,
+          ...dateFilter,
+        },
+      },
+
+      // Break stockin array into separate records
+      {
+        $unwind: "$stockin",
+      },
+
+      // Join Category
+      {
+        $lookup: {
+          from: "categories",
+          localField: "categoryId",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+
+      // Join Site
+      {
+        $lookup: {
+          from: "sites",
+          localField: "siteId",
+          foreignField: "_id",
+          as: "site",
+        },
+      },
+      { $unwind: "$site" },
+
+      // Selected fields + merged stockin details
+      {
+        $project: {
+          _id: 0,
+          productId: "$_id",
+
+          category: 1, // FULL CATEGORY
+          site: 1,     // FULL SITE
+
+          brandName: 1,
+          productName: 1,
+          productLocation: 1,
+          unit: 1,
+          lowStockLimit: 1,
+          quantity: 1,
+          newStockReceivedDate: 1,
+          lastUpdatedDate: 1,
+          stockOutQuantity: 1,
+          lastStockOut: 1,
+          receivedBy: 1,
+          isDefective: 1,
+          status: 1,
+
+          // MERGED STOCKIN OBJECT
+          stockin: {
+            quantity: "$stockin.quantity",
+            receivedBy: "$stockin.receivedBy",
+            brandName: "$stockin.brandName",
+            receivedDate: "$stockin.receivedDate",
+            isDefective: "$stockin.isDefective",
+            remark: "$stockin.remark",
+          },
+        },
+      },
+
+      // Sort latest first
+      { $sort: { "stockin.receivedDate": -1 } },
+    ];
+
+    // -----------------------------
+    // 📌 Pagination Logic
+    // -----------------------------
+    const totalRecords = (await StockIn.aggregate(pipeline)).length;
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    if (isPagination === "true") {
+      const skip = (page - 1) * limit;
+      pipeline.push({ $skip: skip }, { $limit: Number(limit) });
+    }
+
+    const result = await StockIn.aggregate(pipeline);
+
+    return sendSuccess(res, {
+      list: result,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        totalRecords,
+        totalPages,
+      },
+    });
+
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const getDateWiseStockIn = async (req, res) => {
+  try {
+    const {
+      search,
+      siteId,
+      status,
+      categoryId,
+      brandName,
+      fromDate,
+      toDate,
+      page = 1,
+      limit = 10,
+      isPagination = "true",
+    } = req.query;
+
+    const filter = { isDeleted: false };
+
+    // STRING → ObjectId Convert
+    if (categoryId) filter.categoryId = new mongoose.Types.ObjectId(categoryId);
+    if (siteId) filter.siteId = new mongoose.Types.ObjectId(siteId);
+
+    if (search) filter.productName = { $regex: search, $options: "i" };
+    if (brandName) filter.brandName = brandName;
+    if (status) filter.status = status;
+
+    // DATE FILTER
+    let dateFilter = {};
+    if (fromDate || toDate) {
+      const start = fromDate ? new Date(fromDate) : new Date("1970-01-01");
+      const end = toDate ? new Date(toDate) : new Date();
+      end.setHours(23, 59, 59, 999);
+
+      dateFilter = {
+        "stockin.receivedDate": {
+          $gte: start,
+          $lte: end,
+        },
+      };
+    }
+
+    // PIPELINE
+    const pipeline = [
+      {
+        $match: {
+          ...filter,
+          ...dateFilter,
+        },
+      },
+
+      { $unwind: "$stockin" },
+
+      {
+        $lookup: {
+          from: "categories",
+          localField: "categoryId",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+
+      {
+        $lookup: {
+          from: "sites",
+          localField: "siteId",
+          foreignField: "_id",
+          as: "site",
+        },
+      },
+      { $unwind: "$site" },
+
+      {
+        $project: {
+          _id: 0,
+          productId: "$_id",
+          category: 1,
+          site: 1,
+
+          brandName: 1,
+          productName: 1,
+          productLocation: 1,
+          unit: 1,
+          lowStockLimit: 1,
+          quantity: 1,
+          status: 1,
+
+          stockin: {
+            quantity: "$stockin.quantity",
+            receivedBy: "$stockin.receivedBy",
+            brandName: "$stockin.brandName",
+            receivedDate: "$stockin.receivedDate",
+            isDefective: "$stockin.isDefective",
+            remark: "$stockin.remark",
+          },
+        },
+      },
+
+      { $sort: { "stockin.receivedDate": -1 } },
+    ];
+
+    // PAGINATION
+    const totalRecords = (await StockIn.aggregate(pipeline)).length;
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    if (isPagination === "true") {
+      const skip = (page - 1) * limit;
+      pipeline.push({ $skip: skip }, { $limit: Number(limit) });
+    }
+
+    const result = await StockIn.aggregate(pipeline);
+
+    return sendSuccess(res, {
+      list: result,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        totalRecords,
+        totalPages,
+      },
+    });
+
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const getStockInById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) return sendError(res, "Product ID is required");
+
+    const product = await StockIn.findById(id)
+      .populate("categoryId")   // category full object
+      .populate("siteId")       // site full object
+      .lean();
+
+    if (!product) {
+      return sendError(res, "Product not found");
+    }
+
+    return sendSuccess(res, product);
+
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, error.message);
+  }
+};
+
+
 export const getStockSummary = async (req, res) => {
   try {
     const { siteId, productName, categoryId, subCategoryId } = req.query;
