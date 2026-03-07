@@ -95,7 +95,6 @@ export const getUsers = async (req, res) => {
     if (isPagination === "false") {
       // ❌ No pagination — return all
       users = await User.find(query)
-        .select("-password")
         .sort({ [sortBy]: sortOrder })
         .populate("siteId")
         .populate("projectId")
@@ -106,7 +105,6 @@ export const getUsers = async (req, res) => {
       // 🧮 Pagination applied
       const skip = (parseInt(page) - 1) * parseInt(limit);
       users = await User.find(query)
-        .select("-password")
         .sort({ [sortBy]: sortOrder })
         .skip(skip)
         .limit(parseInt(limit))
