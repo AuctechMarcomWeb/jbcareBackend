@@ -74,8 +74,8 @@ export const createStockIn = async (req, res) => {
 
       // 🔄 Status update
       if (stock.quantity === 0) stock.status = "OUT OF STOCK";
-      else if (stock.quantity <= stock.lowStockLimit)
-        stock.status = "LOW STOCK";
+      // else if (stock.quantity <= stock.lowStockLimit)
+      //   stock.status = "LOW STOCK";
       else stock.status = "IN STOCK";
 
       await stock.save();
@@ -134,7 +134,7 @@ export const getStockInCountStats = async (req, res) => {
     const result = {
       total: 0,
       "IN STOCK": 0,
-      "LOW STOCK": 0,
+      // "LOW STOCK": 0,
       "OUT OF STOCK": 0,
     };
 
@@ -160,6 +160,7 @@ export const getStockInList = async (req, res) => {
       categoryId,
       // subCategoryId,
       brandName,
+      productName,
       status,
       page = 1,
       limit = 10,
@@ -176,6 +177,7 @@ export const getStockInList = async (req, res) => {
     if (siteId) filter.siteId = siteId;
     if (categoryId) filter.categoryId = categoryId;
     if (brandName) filter.brandName = brandName;
+    if (productName) filter.productName = productName;
     if (status) filter.status = status;
 
     if (fromDate || toDate) {
@@ -256,152 +258,6 @@ export const getStockInList = async (req, res) => {
   }
 };
 
-
-
-export const getDateWiseStockIn1 = async (req, res) => {
-  try {
-    const {
-      search,
-      siteId,
-      status,
-      categoryId,
-      brandName,
-      fromDate,
-      toDate,
-      page = 1,
-      limit = 10,
-      isPagination = "true",
-    } = req.query;
-
-    const filter = { isDeleted: false };
-
-    if (search) filter.productName = { $regex: search, $options: "i" };
-    if (siteId) filter.siteId = siteId;
-    if (categoryId) filter.categoryId = categoryId;
-    if (brandName) filter.brandName = brandName;
-    if (status) filter.status = status;
-
-    let dateFilter = {};
-
-    if (fromDate || toDate) {
-      const start = fromDate ? new Date(fromDate) : new Date("1970-01-01");
-      const end = toDate ? new Date(toDate) : new Date();
-      end.setHours(23, 59, 59, 999);
-
-      dateFilter = {
-        "stockin.receivedDate": {
-          $gte: start,
-          $lte: end,
-        },
-      };
-    }
-
-    // -----------------------------
-    // 🚀 Aggregation Pipeline
-    // -----------------------------
-    const pipeline = [
-      {
-        $match: {
-          ...filter,
-          ...dateFilter,
-        },
-      },
-
-      // Break stockin array into separate records
-      {
-        $unwind: "$stockin",
-      },
-
-      // Join Category
-      {
-        $lookup: {
-          from: "categories",
-          localField: "categoryId",
-          foreignField: "_id",
-          as: "category",
-        },
-      },
-      { $unwind: "$category" },
-
-      // Join Site
-      {
-        $lookup: {
-          from: "sites",
-          localField: "siteId",
-          foreignField: "_id",
-          as: "site",
-        },
-      },
-      { $unwind: "$site" },
-
-      // Selected fields + merged stockin details
-      {
-        $project: {
-          _id: 0,
-          productId: "$_id",
-
-          category: 1, // FULL CATEGORY
-          site: 1,     // FULL SITE
-
-          brandName: 1,
-          productName: 1,
-          productLocation: 1,
-          unit: 1,
-          lowStockLimit: 1,
-          quantity: 1,
-          newStockReceivedDate: 1,
-          lastUpdatedDate: 1,
-          stockOutQuantity: 1,
-          lastStockOut: 1,
-          receivedBy: 1,
-          isDefective: 1,
-          status: 1,
-
-          // MERGED STOCKIN OBJECT
-          stockin: {
-            quantity: "$stockin.quantity",
-            receivedBy: "$stockin.receivedBy",
-            brandName: "$stockin.brandName",
-            receivedDate: "$stockin.receivedDate",
-            isDefective: "$stockin.isDefective",
-            remark: "$stockin.remark",
-          },
-        },
-      },
-
-      // Sort latest first
-      { $sort: { "stockin.receivedDate": -1 } },
-    ];
-
-    // -----------------------------
-    // 📌 Pagination Logic
-    // -----------------------------
-    const totalRecords = (await StockIn.aggregate(pipeline)).length;
-    const totalPages = Math.ceil(totalRecords / limit);
-
-    if (isPagination === "true") {
-      const skip = (page - 1) * limit;
-      pipeline.push({ $skip: skip }, { $limit: Number(limit) });
-    }
-
-    const result = await StockIn.aggregate(pipeline);
-
-    return sendSuccess(res, {
-      list: result,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        totalRecords,
-        totalPages,
-      },
-    });
-
-  } catch (error) {
-    console.log("❌ ERROR:", error);
-    return sendError(res, error.message);
-  }
-};
-
 export const getDateWiseStockIn = async (req, res) => {
   try {
     const {
@@ -410,6 +266,7 @@ export const getDateWiseStockIn = async (req, res) => {
       status,
       categoryId,
       brandName,
+      productName,
       fromDate,
       toDate,
       page = 1,
@@ -425,6 +282,7 @@ export const getDateWiseStockIn = async (req, res) => {
 
     if (search) filter.productName = { $regex: search, $options: "i" };
     if (brandName) filter.brandName = brandName;
+    if (productName) filter.productName = productName;
     if (status) filter.status = status;
 
     // DATE FILTER
@@ -552,7 +410,6 @@ export const getStockInById = async (req, res) => {
   }
 };
 
-
 export const getStockSummary = async (req, res) => {
   try {
     const { siteId, productName, categoryId, subCategoryId } = req.query;
@@ -658,9 +515,9 @@ export const updateStockIn = async (req, res) => {
       return sendError(res, "Quantity cannot be negative");
     }
 
-    if (req.body.lowStockLimit !== undefined && req.body.lowStockLimit < 0) {
-      return sendError(res, "Low stock limit cannot be negative");
-    }
+    // if (req.body.lowStockLimit !== undefined && req.body.lowStockLimit < 0) {
+    //   return sendError(res, "Low stock limit cannot be negative");
+    // }
 
     // 🔥 STOCK IN CASE (quantity increased)
     if (incomingQty !== undefined && incomingQty > stock.quantity) {
@@ -675,8 +532,8 @@ export const updateStockIn = async (req, res) => {
     // 🔁 Status update
     if (stock.quantity === 0) {
       stock.status = "OUT OF STOCK";
-    } else if (stock.quantity < stock.lowStockLimit) {
-      stock.status = "LOW STOCK";
+      // } else if (stock.quantity < stock.lowStockLimit) {
+      //   stock.status = "LOW STOCK";
     } else {
       stock.status = "IN STOCK";
     }
@@ -796,8 +653,8 @@ export const createStockOut = async (req, res) => {
     // 🔁 Update status
     if (stockIn.quantity === 0) {
       stockIn.status = "OUT OF STOCK";
-    } else if (stockIn.quantity <= stockIn.lowStockLimit) {
-      stockIn.status = "LOW STOCK";
+      // } else if (stockIn.quantity <= stockIn.lowStockLimit) {
+      //   stockIn.status = "LOW STOCK";
     } else {
       stockIn.status = "IN STOCK";
     }
@@ -891,8 +748,8 @@ export const performStockOut = async (req, res) => {
     // 🔁 Status update
     if (stock.quantity === 0) {
       stock.status = "OUT OF STOCK";
-    } else if (stock.quantity <= stock.lowStockLimit) {
-      stock.status = "LOW STOCK";
+      // } else if (stock.quantity <= stock.lowStockLimit) {
+      //   stock.status = "LOW STOCK";
     } else {
       stock.status = "IN STOCK";
     }
@@ -915,6 +772,215 @@ export const performStockOut = async (req, res) => {
     );
   } catch (error) {
     console.error("❌ ERROR:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const getUniqueProductList = async (req, res) => {
+  try {
+    const { search, siteId, categoryId, brandName } = req.query;
+
+    const filter = { isDeleted: false };
+
+    if (search) {
+      filter.productName = { $regex: search, $options: "i" };
+    }
+
+    if (siteId) filter.siteId = siteId;
+    if (categoryId) filter.categoryId = categoryId;
+    if (brandName) filter.brandName = brandName;
+
+    const list = await StockIn.aggregate([
+      { $match: filter },
+
+      {
+        $group: {
+          _id: "$productName",
+          brandName: { $first: "$brandName" },
+          unit: { $first: "$unit" },
+          categoryId: { $first: "$categoryId" },
+          siteId: { $first: "$siteId" },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          productName: "$_id",
+          brandName: 1,
+          unit: 1,
+          categoryId: 1,
+          siteId: 1,
+        },
+      },
+
+      {
+        $sort: { productName: 1 },
+      },
+    ]);
+
+    const populatedList = await StockIn.populate(list, [
+      { path: "categoryId", select: "name" },
+      { path: "siteId", select: "siteName siteType" },
+    ]);
+
+    return sendSuccess(
+      res,
+      " product list fetched successfully",
+      populatedList
+    );
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const getBrandListByProduct = async (req, res) => {
+  try {
+    const { productName, siteId, categoryId } = req.query;
+
+    const filter = { isDeleted: false };
+
+    if (productName) filter.productName = productName;
+    if (siteId) filter.siteId = siteId;
+    if (categoryId) filter.categoryId = categoryId;
+
+    const list = await StockIn.aggregate([
+      { $match: filter },
+
+      {
+        $group: {
+          _id: "$brandName",
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          brandName: "$_id",
+        },
+      },
+
+      {
+        $sort: { brandName: 1 },
+      },
+    ]);
+
+    return sendSuccess(res,
+      "Brand list fetched successfully",
+      list,
+    );
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const getStockOutList = async (req, res) => {
+  try {
+    const { search, productName, brandName, siteId, fromDate, toDate } =
+      req.query;
+
+    const match = { isDeleted: false };
+
+    if (productName) {
+      match.productName = { $regex: productName, $options: "i" };
+    }
+
+    if (brandName) {
+      match.brandName = { $regex: brandName, $options: "i" };
+    }
+
+    if (siteId) {
+      match.siteId = siteId;
+    }
+
+    const pipeline = [
+      { $match: match },
+
+      { $unwind: "$stockout" },
+    ];
+
+    // ⭐ DATE FILTER
+    if (fromDate || toDate) {
+      const start = fromDate ? new Date(fromDate) : new Date("1970-01-01");
+      const end = toDate ? new Date(toDate) : new Date();
+
+      end.setHours(23, 59, 59, 999);
+
+      pipeline.push({
+        $match: {
+          "stockout.date": {
+            $gte: start,
+            $lte: end,
+          },
+        },
+      });
+    }
+
+    pipeline.push(
+      {
+        $lookup: {
+          from: "complaints",
+          localField: "stockout.complainId",
+          foreignField: "_id",
+          as: "complainData",
+        },
+      },
+      {
+        $lookup: {
+          from: "supervisors",
+          localField: "stockout.supervisor",
+          foreignField: "_id",
+          as: "supervisorData",
+        },
+      },
+      {
+        $lookup: {
+          from: "sites",
+          localField: "stockout.siteId",
+          foreignField: "_id",
+          as: "siteData",
+        },
+      },
+      {
+        $project: {
+          productName: 1,
+          brandName: 1,
+          productLocation: 1,
+          unit: 1,
+
+          quantity: "$stockout.quantity",
+          remark: "$stockout.remark",
+          date: "$stockout.date",
+
+          complain: { $arrayElemAt: ["$complainData", 0] },
+          supervisor: { $arrayElemAt: ["$supervisorData", 0] },
+          site: { $arrayElemAt: ["$siteData", 0] },
+        },
+      }
+    );
+
+    // ⭐ SEARCH FILTER
+    if (search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { productName: { $regex: search, $options: "i" } },
+            { brandName: { $regex: search, $options: "i" } },
+            { "complain.complaintTitle": { $regex: search, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    pipeline.push({ $sort: { date: -1 } });
+
+    const list = await StockIn.aggregate(pipeline);
+
+    return sendSuccess(res, list, "StockOut list fetched successfully");
+  } catch (error) {
+    console.log("❌ ERROR:", error);
     return sendError(res, error.message);
   }
 };

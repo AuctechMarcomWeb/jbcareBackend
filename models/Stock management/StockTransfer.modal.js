@@ -2,21 +2,28 @@ import mongoose from "mongoose";
 
 const StockTransferSchema = new mongoose.Schema(
   {
-    itemId: {
+    productId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "StockItems",
+      ref: "StockIn",
       required: true,
     },
 
-    fromWarehouse: {
+    productName: String,
+    brandName: String,
+    categoryId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Warehouse",
+      ref: "Category",
+    },
+
+    fromSiteId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Site",
       required: true,
     },
 
-    toWarehouse: {
+    toSiteId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Warehouse",
+      ref: "Site",
       required: true,
     },
 
@@ -25,15 +32,23 @@ const StockTransferSchema = new mongoose.Schema(
       required: true,
     },
 
-    transferredBy: {
+    remark: {
       type: String,
-      required: true,
+      trim: true,
     },
 
-    remarks: { type: String },
+    transferDate: {
+      type: Date,
+      default: Date.now,
+    },
+
+    transferredBy: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
 
 const StockTransfer = mongoose.model("StockTransfer", StockTransferSchema);
+
 export default StockTransfer;

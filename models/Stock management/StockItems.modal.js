@@ -38,7 +38,7 @@ const ItemSchema = new mongoose.Schema(
     // ⭐ STATUS FIELD
     status: {
       type: String,
-      enum: ["IN STOCK", "LOW STOCK", "OUT OF STOCK"],
+      enum: ["IN STOCK", "OUT OF STOCK"],
       default: "IN STOCK",
     },
   },
@@ -52,8 +52,8 @@ ItemSchema.index({ productName: 1 });
 ItemSchema.pre("save", function (next) {
   if (this.quantity === 0) {
     this.status = "OUT OF STOCK";
-  } else if (this.quantity < this.threshold && this.quantity !== 0) {
-    this.status = "LOW STOCK";
+    // } else if (this.quantity < this.threshold && this.quantity !== 0) {
+    //   this.status = "LOW STOCK";
   } else {
     this.status = "IN STOCK";
   }

@@ -16,7 +16,7 @@ const StockInSchema = new mongoose.Schema(
     productName: { type: String, required: true, trim: true },
     productLocation: { type: String, trim: true },
     unit: { type: String, default: "Nos" },
-    lowStockLimit: { type: Number, default: 10 },
+    // lowStockLimit: { type: Number, default: 10 },
 
     siteId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -42,7 +42,7 @@ const StockInSchema = new mongoose.Schema(
     // ⭐ STATUS FIELD
     status: {
       type: String,
-      enum: ["IN STOCK", "LOW STOCK", "OUT OF STOCK"],
+      enum: ["IN STOCK", "OUT OF STOCK"],
       default: "IN STOCK",
     },
     stockout: [
@@ -50,7 +50,7 @@ const StockInSchema = new mongoose.Schema(
         complainId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Complaint",
-          required: true,
+          // required: true,
         },
         categoryId: {
           type: mongoose.Schema.Types.ObjectId,
@@ -66,7 +66,7 @@ const StockInSchema = new mongoose.Schema(
         supervisor: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Supervisor",
-          required: true,
+          // required: true,
         },
 
         productName: {
@@ -113,8 +113,8 @@ StockInSchema.index(
 StockInSchema.pre("save", function (next) {
   if (this.quantity <= 0) {
     this.status = "OUT OF STOCK";
-  } else if (this.quantity <= this.lowStockLimit) {
-    this.status = "LOW STOCK";
+    // } else if (this.quantity <= this.lowStockLimit) {
+    //   this.status = "LOW STOCK";
   } else {
     this.status = "IN STOCK";
   }
@@ -137,9 +137,10 @@ StockInSchema.pre("findOneAndUpdate", async function (next) {
 
   if (quantity <= 0) {
     status = "OUT OF STOCK";
-  } else if (quantity <= lowStockLimit) {
-    status = "LOW STOCK";
   }
+  // else if (quantity <= lowStockLimit) {
+  //   status = "LOW STOCK";
+  // }
 
   // Force update status + lastUpdatedDate
   this.set({

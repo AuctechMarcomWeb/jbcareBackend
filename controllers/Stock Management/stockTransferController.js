@@ -1,8 +1,9 @@
 import StockItems from "../../models/Stock management/StockItems.modal.js";
 import Warehouse from "../../models/masters/Warehouse.modal.js";
 import StockTransfer from "../../models/Stock management/StockTransfer.modal.js";
+import StockIn from "../../models/Stock management/StockIn.modal.js";
 
-export const transferStock = async (req, res) => {
+export const transferStock12 = async (req, res) => {
   try {
     const {
       itemId,
@@ -194,5 +195,179 @@ export const getAllTransferLogs = async (req, res) => {
       message: "Failed to fetch transfer logs",
       error: error.message,
     });
+  }
+};
+
+
+
+export const transferStock = async (req, res) => {
+  try {
+    const {
+      productId,
+      fromSiteId,
+      toSiteId,
+      quantity,
+      remark,
+      transferredBy,
+    } = req.body;
+
+    const stock = await StockIn.findById(productId);
+
+    if (!stock) {
+      return sendError(res, "Product not found");
+    }
+
+    if (stock.quantity < quantity) {
+      return sendError(res, "Insufficient stock");
+    }
+
+    // ⭐ 1. Deduct stock from source site
+    await StockIn.findOneAndUpdate(
+      { _id: productId, siteId: fromSiteId },
+      {
+        $inc: { quantity: -quantity },
+        lastUpdatedDate: new Date(),
+      }
+    );
+
+    // ⭐ 2. Add stock to destination site
+    let destinationStock = await StockIn.findOne({
+      productName: stock.productName,
+      brandName: stock.brandName,
+      siteId: toSiteId,
+    });
+
+    if (destinationStock) {
+      destinationStock.quantity += quantity;
+
+      destinationStock.stockin.push({
+        quantity,
+        receivedBy: transferredBy,
+        brandName: stock.brandName,
+        remark: `Stock transferred from site`,
+      });
+
+      await destinationStock.save();
+    } else {
+      destinationStock = await StockIn.create({
+        categoryId: stock.categoryId,
+        productName: stock.productName,
+        brandName: stock.brandName,
+        siteId: toSiteId,
+        quantity,
+        stockin: [
+          {
+            quantity,
+            receivedBy: transferredBy,
+            brandName: stock.brandName,
+            remark: `Stock transferred from another site`,
+          },
+        ],
+      });
+    }
+
+    // ⭐ 3. Save transfer record
+    await StockTransfer.create({
+      productId,
+      productName: stock.productName,
+      brandName: stock.brandName,
+      categoryId: stock.categoryId,
+      fromSiteId,
+      toSiteId,
+      quantity,
+      remark,
+      transferredBy,
+    });
+
+    return sendSuccess(res, null, "Stock transferred successfully");
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const getStockTransferList = async (req, res) => {
+  try {
+    const {
+      search,
+      productName,
+      fromSiteId,
+      toSiteId,
+      fromDate,
+      toDate,
+      page = 1,
+      limit = 10,
+      isPagination = "true",
+    } = req.query;
+
+    const filter = {};
+
+    if (productName) {
+      filter.productName = { $regex: productName, $options: "i" };
+    }
+
+    if (fromSiteId) {
+      filter.fromSiteId = fromSiteId;
+    }
+
+    if (toSiteId) {
+      filter.toSiteId = toSiteId;
+    }
+
+    // ⭐ DATE FILTER
+    if (fromDate || toDate) {
+      const start = fromDate ? new Date(fromDate) : new Date("1970-01-01");
+      const end = toDate ? new Date(toDate) : new Date();
+
+      end.setHours(23, 59, 59, 999);
+
+      filter.transferDate = {
+        $gte: start,
+        $lte: end,
+      };
+    }
+
+    // ⭐ SEARCH FILTER
+    if (search) {
+      filter.$or = [
+        { productName: { $regex: search, $options: "i" } },
+        { brandName: { $regex: search, $options: "i" } },
+        { remark: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const totalRecords = await StockTransfer.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    if (isPagination === "false") {
+      const list = await StockTransfer.find(filter)
+        .populate("fromSiteId", "siteName")
+        .populate("toSiteId", "siteName")
+        .sort({ createdAt: -1 });
+
+      return sendSuccess(res, list, "Stock transfer list fetched successfully");
+    }
+
+    const skip = (page - 1) * limit;
+
+    const list = await StockTransfer.find(filter)
+      .populate("fromSiteId", "siteName")
+      .populate("toSiteId", "siteName")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    return sendSuccess(res, {
+      list,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        totalRecords,
+        totalPages,
+      },
+    });
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, error.message);
   }
 };
