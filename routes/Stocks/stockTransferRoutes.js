@@ -1,12 +1,14 @@
 import express from "express";
 import {
-  getAllTransferLogs,
+
+  getStockTransferList,
   transferStock,
 } from "../../controllers/Stock Management/stockTransferController.js";
 
 const router = express.Router();
 
 router.get("/", transferStock);
-router.get("/logs", getAllTransferLogs);
+
+router.get("/stockTransferList", getStockTransferList);
 
 export default router;

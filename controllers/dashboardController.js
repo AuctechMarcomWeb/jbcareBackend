@@ -111,11 +111,11 @@ export const getDashboardStats = async (req, res) => {
       status: "IN STOCK",
       ...inventoryQuery,
     });
-    const totalLowStockItems = await StockItems.countDocuments({
-      isDeleted: false,
-      status: "LOW STOCK",
-      ...inventoryQuery,
-    });
+    // const totalLowStockItems = await StockItems.countDocuments({
+    //   isDeleted: false,
+    //   status: "LOW STOCK",
+    //   ...inventoryQuery,
+    // });
     const totalOutOfStockItems = await StockItems.countDocuments({
       isDeleted: false,
       status: "OUT OF STOCK",
@@ -145,7 +145,7 @@ export const getDashboardStats = async (req, res) => {
         // Inventory
         totalItems,
         totalInStockItems,
-        totalLowStockItems,
+        // totalLowStockItems,
         totalOutOfStockItems,
       },
     });
@@ -239,10 +239,10 @@ export const getDashboardSummary = async (req, res) => {
       status: "IN STOCK",
     });
 
-    const lowStock = await StockIn.countDocuments({
-      isDeleted: false,
-      status: "LOW STOCK",
-    });
+    // const lowStock = await StockIn.countDocuments({
+    //   isDeleted: false,
+    //   status: "LOW STOCK",
+    // });
 
     const outOfStock = await StockIn.countDocuments({
       isDeleted: false,
@@ -251,7 +251,10 @@ export const getDashboardSummary = async (req, res) => {
 
 
     const stockData = {
-      totalStockItems, inStock, lowStock, outOfStock
+      totalStockItems,
+      inStock,
+      // lowStock,
+      outOfStock
     }
 
 
