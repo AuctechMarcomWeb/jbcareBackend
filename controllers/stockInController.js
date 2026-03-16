@@ -785,9 +785,10 @@ export const getUniqueProductList = async (req, res) => {
     if (search) {
       filter.productName = { $regex: search, $options: "i" };
     }
+    if (siteId) filter.siteId = new mongoose.Types.ObjectId(siteId);
 
-    if (siteId) filter.siteId = siteId;
-    if (categoryId) filter.categoryId = categoryId;
+    if (categoryId)
+      filter.categoryId = new mongoose.Types.ObjectId(categoryId);
     if (brandName) filter.brandName = brandName;
 
     const list = await StockIn.aggregate([
@@ -795,22 +796,30 @@ export const getUniqueProductList = async (req, res) => {
 
       {
         $group: {
-          _id: "$productName",
+          _id: {
+            productName: "$productName",
+            siteId: "$siteId",
+          },
+          productName: { $first: "$productName" },
           brandName: { $first: "$brandName" },
           unit: { $first: "$unit" },
           categoryId: { $first: "$categoryId" },
           siteId: { $first: "$siteId" },
+
+          // current quantity
+          currentQty: { $sum: "$quantity" },
         },
       },
 
       {
         $project: {
           _id: 0,
-          productName: "$_id",
+          productName: 1,
           brandName: 1,
           unit: 1,
           categoryId: 1,
           siteId: 1,
+          currentQty: 1,
         },
       },
 
@@ -824,11 +833,7 @@ export const getUniqueProductList = async (req, res) => {
       { path: "siteId", select: "siteName siteType" },
     ]);
 
-    return sendSuccess(
-      res,
-      " product list fetched successfully",
-      populatedList
-    );
+    return sendSuccess(res, "Product list fetched successfully", populatedList);
   } catch (error) {
     console.log("❌ ERROR:", error);
     return sendError(res, error.message);

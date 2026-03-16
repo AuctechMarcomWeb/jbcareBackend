@@ -7,16 +7,11 @@ const StockInSchema = new mongoose.Schema(
       ref: "Category",
       required: true,
     },
-    // subCategoryId: {
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: "SubCategory",
-    //     required: true,
-    // },
+
     brandName: String,
     productName: { type: String, required: true, trim: true },
     productLocation: { type: String, trim: true },
     unit: { type: String, default: "Nos" },
-    // lowStockLimit: { type: Number, default: 10 },
 
     siteId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -39,7 +34,6 @@ const StockInSchema = new mongoose.Schema(
     isDefective: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
 
-    // ⭐ STATUS FIELD
     status: {
       type: String,
       enum: ["IN STOCK", "OUT OF STOCK"],
@@ -50,7 +44,6 @@ const StockInSchema = new mongoose.Schema(
         complainId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Complaint",
-          // required: true,
         },
         categoryId: {
           type: mongoose.Schema.Types.ObjectId,
@@ -66,7 +59,6 @@ const StockInSchema = new mongoose.Schema(
         supervisor: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Supervisor",
-          // required: true,
         },
 
         productName: {
