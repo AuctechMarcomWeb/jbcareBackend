@@ -7,7 +7,7 @@ import {
 
 const router = express.Router();
 
-router.get("/", transferStock);
+router.post("/", transferStock);
 
 router.get("/stockTransferList", getStockTransferList);
 
