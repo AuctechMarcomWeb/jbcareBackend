@@ -738,7 +738,7 @@ export const performStockOut = async (req, res) => {
       unit: unit || stock.unit,
       quantity,
       remark,
-      date: date || new Date(),
+      date: date,
     });
     // 🧮 ALWAYS recompute from history (SAFE)
     stock.stockOutQuantity = stock.stockout.reduce(
@@ -881,7 +881,7 @@ export const getBrandListByProduct = async (req, res) => {
   }
 };
 
-export const getStockOutList = async (req, res) => {
+export const getStockOutList12 = async (req, res) => {
   try {
     const {
       search,
@@ -996,6 +996,187 @@ export const getStockOutList = async (req, res) => {
       ...pipeline,
       { $count: "total" },
     ];
+
+    const [list, totalResult] = await Promise.all([
+      StockIn.aggregate(dataPipeline),
+      StockIn.aggregate(countPipeline),
+    ]);
+
+    const total = totalResult[0]?.total || 0;
+
+    return sendSuccess(res, "StockOut list fetched successfully", {
+      list,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.log("❌ ERROR:", error);
+    return sendError(res, error.message);
+  }
+};
+
+export const getStockOutList = async (req, res) => {
+  try {
+    const {
+      search,
+      productName,
+      brandName,
+      siteId,
+      categoryId,
+      fromDate,
+      toDate,
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const match = { isDeleted: false };
+
+    // 🔹 Parent level filters
+    if (productName) {
+      match.productName = { $regex: productName, $options: "i" };
+    }
+
+    if (brandName) {
+      match.brandName = { $regex: brandName, $options: "i" };
+    }
+
+    const pipeline = [
+      { $match: match },
+
+      // 🔹 unwind stockout array
+      { $unwind: "$stockout" },
+
+      // ✅ siteId filter (stockout level)
+      ...(siteId
+        ? [
+          {
+            $match: {
+              "stockout.siteId": new mongoose.Types.ObjectId(siteId),
+            },
+          },
+        ]
+        : []),
+
+      // ✅ categoryId filter (stockout level)
+      ...(categoryId
+        ? [
+          {
+            $match: {
+              "stockout.categoryId": new mongoose.Types.ObjectId(
+                categoryId
+              ),
+            },
+          },
+        ]
+        : []),
+
+      // 🔹 ignore null dates
+      {
+        $match: {
+          "stockout.date": { $ne: null },
+        },
+      },
+
+      // ⭐ DATE FILTER
+      ...(fromDate || toDate
+        ? [
+          {
+            $match: {
+              "stockout.date": {
+                $gte: fromDate
+                  ? new Date(fromDate)
+                  : new Date("1970-01-01"),
+                $lte: toDate
+                  ? new Date(new Date(toDate).setHours(23, 59, 59, 999))
+                  : new Date(),
+              },
+            },
+          },
+        ]
+        : []),
+
+      // ⭐ SORT (LATEST FIRST)
+      {
+        $sort: { "stockout.date": -1 },
+      },
+
+      // 🔹 LOOKUPS
+      {
+        $lookup: {
+          from: "complaints",
+          localField: "stockout.complainId",
+          foreignField: "_id",
+          as: "complainData",
+        },
+      },
+      {
+        $lookup: {
+          from: "supervisors",
+          localField: "stockout.supervisor",
+          foreignField: "_id",
+          as: "supervisorData",
+        },
+      },
+      {
+        $lookup: {
+          from: "sites",
+          localField: "stockout.siteId",
+          foreignField: "_id",
+          as: "siteData",
+        },
+      },
+
+      // 🔹 FINAL RESPONSE
+      {
+        $project: {
+          productName: 1,
+          brandName: 1,
+          productLocation: 1,
+          unit: 1,
+          quantity: "$stockout.quantity",
+          remark: "$stockout.remark",
+          date: "$stockout.date",
+          complain: { $arrayElemAt: ["$complainData", 0] },
+          supervisor: { $arrayElemAt: ["$supervisorData", 0] },
+          site: { $arrayElemAt: ["$siteData", 0] },
+        },
+      },
+
+      // ⭐ SEARCH FILTER
+      ...(search
+        ? [
+          {
+            $match: {
+              $or: [
+                { productName: { $regex: search, $options: "i" } },
+                { brandName: { $regex: search, $options: "i" } },
+                {
+                  "complain.complaintTitle": {
+                    $regex: search,
+                    $options: "i",
+                  },
+                },
+              ],
+            },
+          },
+        ]
+        : []),
+    ];
+
+    // ⭐ PAGINATION
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const dataPipeline = [
+      ...pipeline,
+      { $skip: skip },
+      { $limit: parseInt(limit) },
+    ];
+
+    const countPipeline = [...pipeline, { $count: "total" }];
 
     const [list, totalResult] = await Promise.all([
       StockIn.aggregate(dataPipeline),

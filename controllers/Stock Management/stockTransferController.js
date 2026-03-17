@@ -75,8 +75,8 @@ export const transferStock = async (req, res) => {
 
       destinationStock = await StockIn.create({
         categoryId: sourceStock.categoryId,
-        productName: brandName,
-        brandName: sourceStock.brandName,
+        productName: sourceStock.productName,
+        brandName: brandName,
         productLocation: sourceStock.productLocation,
         siteId: toSiteId,
         unit: sourceStock.unit,
