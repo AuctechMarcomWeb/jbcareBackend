@@ -175,6 +175,7 @@ export const getStockTransferList = async (req, res) => {
     if (isPagination === "false") {
       const list = await StockTransfer.find(filter)
         .populate("fromSiteId", "siteName")
+        .populate("categoryId",)
         .populate("toSiteId", "siteName")
         .sort({ createdAt: -1 });
 
@@ -185,6 +186,7 @@ export const getStockTransferList = async (req, res) => {
 
     const list = await StockTransfer.find(filter)
       .populate("fromSiteId", "siteName")
+      .populate("categoryId",)
       .populate("toSiteId", "siteName")
       .sort({ createdAt: -1 })
       .skip(skip)

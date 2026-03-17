@@ -883,8 +883,16 @@ export const getBrandListByProduct = async (req, res) => {
 
 export const getStockOutList = async (req, res) => {
   try {
-    const { search, productName, brandName, siteId, fromDate, toDate } =
-      req.query;
+    const {
+      search,
+      productName,
+      brandName,
+      siteId,
+      fromDate,
+      toDate,
+      page = 1,
+      limit = 10,
+    } = req.query;
 
     const match = { isDeleted: false };
 
@@ -900,17 +908,12 @@ export const getStockOutList = async (req, res) => {
       match.siteId = siteId;
     }
 
-    const pipeline = [
-      { $match: match },
-
-      { $unwind: "$stockout" },
-    ];
+    const pipeline = [{ $match: match }, { $unwind: "$stockout" }];
 
     // ⭐ DATE FILTER
     if (fromDate || toDate) {
       const start = fromDate ? new Date(fromDate) : new Date("1970-01-01");
       const end = toDate ? new Date(toDate) : new Date();
-
       end.setHours(23, 59, 59, 999);
 
       pipeline.push({
@@ -954,11 +957,9 @@ export const getStockOutList = async (req, res) => {
           brandName: 1,
           productLocation: 1,
           unit: 1,
-
           quantity: "$stockout.quantity",
           remark: "$stockout.remark",
           date: "$stockout.date",
-
           complain: { $arrayElemAt: ["$complainData", 0] },
           supervisor: { $arrayElemAt: ["$supervisorData", 0] },
           site: { $arrayElemAt: ["$siteData", 0] },
@@ -979,11 +980,39 @@ export const getStockOutList = async (req, res) => {
       });
     }
 
+    // ⭐ SORT
     pipeline.push({ $sort: { date: -1 } });
 
-    const list = await StockIn.aggregate(pipeline);
+    // ⭐ PAGINATION LOGIC
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    return sendSuccess(res, list, "StockOut list fetched successfully");
+    const dataPipeline = [
+      ...pipeline,
+      { $skip: skip },
+      { $limit: parseInt(limit) },
+    ];
+
+    const countPipeline = [
+      ...pipeline,
+      { $count: "total" },
+    ];
+
+    const [list, totalResult] = await Promise.all([
+      StockIn.aggregate(dataPipeline),
+      StockIn.aggregate(countPipeline),
+    ]);
+
+    const total = totalResult[0]?.total || 0;
+
+    return sendSuccess(res, "StockOut list fetched successfully", {
+      list,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.log("❌ ERROR:", error);
     return sendError(res, error.message);
