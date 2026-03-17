@@ -201,31 +201,35 @@ export const getAllMaintainCharges = async (req, res) => {
       .populate("unitId", "unitNumber")
       .sort({ [sortBy]: sortOrder });
 
+
+
     // 🔹 Attach Tenant & Landlord per Unit
     const finalData = await Promise.all(
       charges.map(async (item) => {
+        const unit = await Unit.findOne().populate("landlordId", "name phone email").populate("tenantId", "name phone email");
         const tenant = await Tenant.findOne({
           unitId: item.unitId?._id,
           isActive: true,
         }).populate("landlordId", "name phone email");
 
+        console.log("unit", unit);
         return {
           ...item.toObject(),
-          tenant: tenant
+          tenant: unit.tenantId
             ? {
-              _id: tenant._id,
-              name: tenant.name,
-              phone: tenant.phone,
-              email: tenant.email,
+              _id: unit.tenantId._id,
+              name: unit.tenantId.name,
+              phone: unit.tenantId.phone,
+              email: unit.tenantId.email,
             }
             : null,
 
-          landlord: tenant?.landlordId
+          landlord: unit?.landlordId
             ? {
-              _id: tenant.landlordId._id,
-              name: tenant.landlordId.name,
-              phone: tenant.landlordId.phone,
-              email: tenant.landlordId.email,
+              _id: unit.landlordId._id,
+              name: unit.landlordId.name,
+              phone: unit.landlordId.phone,
+              email: unit.landlordId.email,
             }
             : null,
         };
