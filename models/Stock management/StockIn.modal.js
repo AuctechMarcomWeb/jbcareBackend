@@ -72,7 +72,10 @@ const StockInSchema = new mongoose.Schema(
 
         quantity: { type: Number, default: 0 },
 
-        date: { type: Date },
+        date: {
+          type: Date,
+          default: Date.now
+        },
       },
     ],
     // 🔹 STOCK-IN HISTORY
