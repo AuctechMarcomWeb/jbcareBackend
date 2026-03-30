@@ -9,8 +9,16 @@ const StockInSchema = new mongoose.Schema(
     },
 
     brandName: String,
-    productName: { type: String, required: true, trim: true },
-    productLocation: { type: String, trim: true },
+    productName: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
+    },
+    productLocation: {
+      type: String,
+      trim: true
+    },
     unit: { type: String, default: "Nos" },
 
     siteId: {

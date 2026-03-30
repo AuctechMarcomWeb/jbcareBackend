@@ -53,9 +53,11 @@ export const createStockIn = async (req, res) => {
       return sendError(res, "Product name must be at least 2 characters");
     }
 
+    const normalizedProductName = productName.trim().toUpperCase();
+
     let stock = await StockIn.findOne({
       categoryId,
-      productName,
+      productName: normalizedProductName,
       siteId,
       isDeleted: false,
     });
@@ -84,7 +86,7 @@ export const createStockIn = async (req, res) => {
       stock = await StockIn.create({
         categoryId,
         brandName, // first-time brand
-        productName,
+        productName: normalizedProductName,
         productLocation,
         unit,
         lowStockLimit,
