@@ -102,17 +102,7 @@ const StockInSchema = new mongoose.Schema(
 );
 
 // Index for fast search
-StockInSchema.index({ productName: 1 });
-StockInSchema.index({ newStockReceivedDate: 1 });
-StockInSchema.index({ lastUpdatedDate: 1 });
-StockInSchema.index(
-  {
-    categoryId: 1,
-    siteId: 1,
-    productName: 1,
-  },
-  { unique: true },
-);
+
 StockInSchema.pre("save", function (next) {
   if (this.quantity <= 0) {
     this.status = "OUT OF STOCK";

@@ -20,7 +20,9 @@ export const transferStock = async (req, res) => {
       productName,
       siteId: fromSiteId,
       isDeleted: false,
-    });
+    }).populate("siteId",);
+
+
 
 
 
@@ -35,17 +37,19 @@ export const transferStock = async (req, res) => {
     /* 2️⃣ SOURCE SITE STOCK OUT */
     sourceStock.quantity -= quantity;
 
-    // sourceStock.stockout.push({
-    //   categoryId: sourceStock.categoryId,
-    //   brandName: brandName,
-    //   siteId: fromSiteId,
-    //   productName: sourceStock._id,
-    //   productLocation: sourceStock.productLocation,
-    //   unit: sourceStock.unit,
-    //   quantity,
-    //   remark: remark || "Stock transferred to another site",
-    //   date: new Date(),
-    // });
+    sourceStock.stockout.push({
+      categoryId: sourceStock.categoryId,
+      brandName: brandName,
+      siteId: fromSiteId,
+      productName: sourceStock._id,
+      productLocation: sourceStock.productLocation,
+      unit: sourceStock.unit,
+      quantity,
+      remark: remark || "Stock transferred to another site",
+      date: new Date(),
+    });
+
+
 
     await sourceStock.save();
 
@@ -66,7 +70,7 @@ export const transferStock = async (req, res) => {
         receivedBy: transferredBy,
         brandName: brandName,
         receivedDate: new Date(),
-        remark: `Stock received from site ${fromSiteId}`,
+        remark: `Stock received from site ${sourceStock?.siteId.siteName}`,
       });
 
       await destinationStock.save();
@@ -88,7 +92,7 @@ export const transferStock = async (req, res) => {
             receivedBy: transferredBy,
             brandName: brandName,
             receivedDate: new Date(),
-            remark: `Stock received from site ${fromSiteId}`,
+            remark: `Stock received from site ${sourceStock?.siteId.siteName}`,
           },
         ],
       });
